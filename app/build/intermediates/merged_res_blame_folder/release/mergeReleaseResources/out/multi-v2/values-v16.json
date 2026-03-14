@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.mpesa.tracker.app-mergeReleaseResources-57:/values-v16/values-v16.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\Pi\\.gradle\\caches\\transforms-4\\43f36e4c14a358dbbdd605de14e523ba\\transformed\\core-1.12.0\\res\\values-v16\\values-v16.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "65",
+                        "endOffsets": "116"
+                    }
+                }
+            ]
+        }
+    ]
+}

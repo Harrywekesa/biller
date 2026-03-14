@@ -1,0 +1,25 @@
+﻿
+compile_log.txt:22:cmd.exe : e: 
+file:///C:/Users/Pi/Vi
+compile_log.txt:35:   pecified: 
+(e: file:///C:/U...n  
+compile_log.txt:41:e: 
+file:///C:/Users/Pi/Videos/bille
+compile_log.txt:47:e: 
+file:///C:/Users/Pi/Videos/bille
+compile_log.txt:53:e: 
+file:///C:/Users/Pi/Videos/bille
+compile_log.txt:59:e: 
+file:///C:/Users/Pi/Videos/bille
+compile_log.txt:64:e: 
+file:///C:/Users/Pi/Videos/bille
+compile_log.txt:70:e: 
+file:///C:/Users/Pi/Videos/bille
+compile_log.txt:75:e: 
+file:///C:/Users/Pi/Videos/bille
+compile_log.txt:81:e: 
+file:///C:/Users/Pi/Videos/bille
+compile_log.txt:87:e: 
+file:///C:/Users/Pi/Videos/bille
+
+

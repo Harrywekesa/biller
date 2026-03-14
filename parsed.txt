@@ -1,0 +1,11 @@
+﻿./gradlew : e: file:///C:/Users/Pi/
+   pecified: (e: file:///C:/U...n  
+e: file:///C:/Users/Pi/Videos/bille
+e: file:///C:/Users/Pi/Videos/bille
+e: file:///C:/Users/Pi/Videos/bille
+e: file:///C:/Users/Pi/Videos/bille
+e: file:///C:/Users/Pi/Videos/bille
+e: file:///C:/Users/Pi/Videos/bille
+e: file:///C:/Users/Pi/Videos/bille
+e: file:///C:/Users/Pi/Videos/bille
+e: file:///C:/Users/Pi/Videos/bille
