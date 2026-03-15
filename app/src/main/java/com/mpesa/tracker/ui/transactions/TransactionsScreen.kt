@@ -9,6 +9,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,9 +40,14 @@ fun TransactionsScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filterIncomeOnly by viewModel.filterIncomeOnly.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
+    val selectedIds by viewModel.selectedTransactionIds.collectAsState()
     
     var selectedTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
+    var isSelectionMode by remember { mutableStateOf(false) }
+    var showBulkCategorySheet by remember { mutableStateOf(false) }
+    
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val bulkSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
     var showCreateCategoryDialog by remember { mutableStateOf(false) }
     var newCategoryName by remember { mutableStateOf("") }
@@ -60,31 +67,70 @@ fun TransactionsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("All Transactions", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                ),
-                actions = {
-                    IconButton(onClick = { viewModel.clearAndResyncSms() }, enabled = !isSyncing) {
-                        if (isSyncing) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = PrimaryGreen)
-                        } else {
+            if (isSelectionMode) {
+                TopAppBar(
+                    title = { Text("${selectedIds.size} Selected", fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = { 
+                            isSelectionMode = false
+                            viewModel.clearSelection() 
+                        }) {
+                            Icon(Icons.Filled.Clear, contentDescription = "Close Selection")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = PrimaryGreen.copy(alpha = 0.1f),
+                        titleContentColor = MaterialTheme.colorScheme.onBackground
+                    ),
+                    actions = {
+                        IconButton(
+                            onClick = { 
+                                if (selectedIds.isNotEmpty()) {
+                                    showBulkCategorySheet = true 
+                                }
+                            }
+                        ) {
                             Icon(
-                                imageVector = Icons.Filled.Sync, 
-                                contentDescription = "Clear & Resync SMS",
-                                tint = PrimaryGreen
+                                imageVector = Icons.Filled.FilterList, 
+                                contentDescription = "Categorize Selected",
+                                tint = if (selectedIds.isNotEmpty()) PrimaryGreen else Color.Gray
                             )
                         }
                     }
-                }
-            )
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("All Transactions", fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground
+                    ),
+                    actions = {
+                        IconButton(onClick = { isSelectionMode = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.Check, 
+                                contentDescription = "Select Multiple"
+                            )
+                        }
+                        IconButton(onClick = { viewModel.clearAndResyncSms() }, enabled = !isSyncing) {
+                            if (isSyncing) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = PrimaryGreen)
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Filled.Sync, 
+                                    contentDescription = "Clear & Resync SMS",
+                                    tint = PrimaryGreen
+                                )
+                            }
+                        }
+                    }
+                )
+            }
         }
     ) { paddingValues ->
         Column(
@@ -196,10 +242,76 @@ fun TransactionsScreen(
                             date = dateStr,
                             isIncome = transaction.isIncome,
                             fulizaAmount = transaction.fulizaAmount,
-                            onClick = { selectedTransaction = transaction }
+                            isSelected = selectedIds.contains(transaction.receiptNumber),
+                            onClick = { 
+                                if (isSelectionMode) {
+                                    viewModel.toggleSelection(transaction.receiptNumber)
+                                } else {
+                                    selectedTransaction = transaction 
+                                }
+                            }
                         )
                     }
                 }
+            }
+        }
+    }
+
+    if (showBulkCategorySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showBulkCategorySheet = false },
+            sheetState = bulkSheetState
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "Categorize ${selectedIds.size} Transactions",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                Text(
+                    text = "This will assign a custom rule for all selected merchants.",
+                    fontSize = 14.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                OutlinedButton(
+                    onClick = { showCreateCategoryDialog = true },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryGreen)
+                ) {
+                    Text("+ Create New Category")
+                }
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(categories) { category ->
+                        Surface(
+                            onClick = {
+                                viewModel.categorizeSelected(category.id)
+                                showBulkCategorySheet = false
+                                isSelectionMode = false
+                            },
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = category.name,
+                                modifier = Modifier.padding(16.dp),
+                                fontSize = 16.sp
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }

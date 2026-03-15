@@ -219,6 +219,7 @@ fun TransactionMockItem(
     date: String,
     isIncome: Boolean = false,
     fulizaAmount: Double? = null,
+    isSelected: Boolean = false,
     onClick: () -> Unit = {}
 ) {
     Card(
@@ -226,8 +227,10 @@ fun TransactionMockItem(
             .fillMaxWidth()
             .padding(vertical = 6.dp),
         onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) PrimaryGreen.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 0.dp else 1.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp).fillMaxWidth(),

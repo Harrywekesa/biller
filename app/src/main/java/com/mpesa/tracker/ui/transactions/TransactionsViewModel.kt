@@ -35,6 +35,9 @@ class TransactionsViewModel @Inject constructor(
     private val _filterFulizaOnly = MutableStateFlow(false)
     val filterFulizaOnly: StateFlow<Boolean> = _filterFulizaOnly.asStateFlow()
 
+    private val _selectedTransactionIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedTransactionIds: StateFlow<Set<String>> = _selectedTransactionIds.asStateFlow()
+
     private data class FilterArgs(
         val query: String,
         val incomeOnly: Boolean,
@@ -132,6 +135,39 @@ class TransactionsViewModel @Inject constructor(
     fun addCategory(name: String, colorCode: String = "#9E9E9E", iconName: String = "help_outline") {
         viewModelScope.launch {
             repository.addCategory(name, colorCode, iconName)
+        }
+    }
+
+    fun toggleSelection(receiptNumber: String) {
+        val current = _selectedTransactionIds.value.toMutableSet()
+        if (current.contains(receiptNumber)) {
+            current.remove(receiptNumber)
+        } else {
+            current.add(receiptNumber)
+        }
+        _selectedTransactionIds.value = current
+    }
+
+    fun clearSelection() {
+        _selectedTransactionIds.value = emptySet()
+    }
+
+    fun selectAll(receiptNumbers: List<String>) {
+        _selectedTransactionIds.value = receiptNumbers.toSet()
+    }
+
+    fun categorizeSelected(categoryId: Int) {
+        viewModelScope.launch {
+            val selectedIds = _selectedTransactionIds.value
+            val currentTxs = transactions.value
+            
+            val txsToUpdate = currentTxs.filter { it.receiptNumber in selectedIds }
+            
+            txsToUpdate.forEach { tx ->
+                repository.updateTransactionCategoryAndSaveRule(tx.receiptNumber, categoryId, tx.recipientName)
+            }
+            
+            clearSelection()
         }
     }
 }
