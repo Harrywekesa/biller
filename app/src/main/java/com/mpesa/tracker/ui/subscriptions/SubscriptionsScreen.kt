@@ -64,7 +64,7 @@ fun SubscriptionsScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("No active subscriptions found.", color = Color.Gray)
-                        Text("Apps will be automatically detected.", color = Color.Gray, fontSize = 12.sp)
+                        Text("Categorize your bills as 'Subscriptions' to track them here.", color = Color.Gray, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
                     }
                 }
             } else {

@@ -106,7 +106,8 @@ fun AnalyticsScreen(
             DateRangePicker(
                 state = dateRangePickerState,
                 title = { Text("Select Reporting Date Range", modifier = Modifier.padding(16.dp)) },
-                showModeToggle = false
+                showModeToggle = false,
+                modifier = Modifier.weight(1f)
             )
         }
     }

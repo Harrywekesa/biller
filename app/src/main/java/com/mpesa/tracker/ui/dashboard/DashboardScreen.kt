@@ -8,7 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,13 +31,13 @@ import java.util.Locale
 @Composable
 fun DashboardScreen(
     onNavigateBack: () -> Unit,
-    onNavigateToTransactions: () -> Unit,
+    onNavigateToTransactions: (incomeOnly: Boolean) -> Unit,
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     var isBalanceVisible by remember { mutableStateOf(false) }
-    
     val totalBalance by viewModel.totalBalance.collectAsState()
     val monthSpend by viewModel.monthSpend.collectAsState()
+    val monthIncome by viewModel.monthIncome.collectAsState()
     val recentTransactions by viewModel.recentTransactions.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
 
@@ -56,7 +56,7 @@ fun DashboardScreen(
                             CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = PrimaryGreen)
                         } else {
                             Icon(
-                                imageVector = Icons.Filled.DeleteSweep, 
+                                imageVector = Icons.Filled.Sync, 
                                 contentDescription = "Clear & Resync SMS",
                                 tint = PrimaryGreen
                             )
@@ -74,12 +74,13 @@ fun DashboardScreen(
                 .padding(horizontal = 16.dp)
         ) {
             
-            Spacer(modifier = Modifier.height(16.dp))
-        BalanceCard(
+            BalanceCard(
             balance = if (isBalanceVisible) "Ksh $totalBalance" else "Ksh ****",
             monthSpend = if (isBalanceVisible) "Ksh $monthSpend" else "Ksh ****",
+            monthIncome = if (isBalanceVisible) "Ksh $monthIncome" else "Ksh ****",
             isBalanceVisible = isBalanceVisible,
-            onToggleVisibility = { isBalanceVisible = !isBalanceVisible }
+            onToggleVisibility = { isBalanceVisible = !isBalanceVisible },
+            onNavigateToTransactions = onNavigateToTransactions
         )
         
         Spacer(modifier = Modifier.height(24.dp))
@@ -94,7 +95,7 @@ fun DashboardScreen(
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold
             )
-            TextButton(onClick = onNavigateToTransactions) {
+            TextButton(onClick = { onNavigateToTransactions(false) }) {
                 Text("See All", color = PrimaryGreen, fontWeight = FontWeight.Bold)
             }
         }
@@ -125,13 +126,14 @@ fun DashboardScreen(
     }
 }
 }
-
 @Composable
 fun BalanceCard(
     balance: String, 
     monthSpend: String, 
+    monthIncome: String,
     isBalanceVisible: Boolean, 
-    onToggleVisibility: () -> Unit
+    onToggleVisibility: () -> Unit,
+    onNavigateToTransactions: (incomeOnly: Boolean) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().wrapContentHeight(), // Removed hardcoded 180.dp height
@@ -176,14 +178,32 @@ fun BalanceCard(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
                 )
-                
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
-                        Text(text = "Spent this Month", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
-                        Text(text = monthSpend, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 8.dp))
+                    // Money In (Income)
+                    Surface(
+                        color = Color.Transparent,
+                        onClick = { onNavigateToTransactions(true) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column {
+                            Text(text = "Money In", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                            Text(text = monthIncome, color = Color(0xFF4CAF50), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    
+                    // Money Out (Spend)
+                    Surface(
+                        color = Color.Transparent,
+                        onClick = { onNavigateToTransactions(false) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(text = "Money Out", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                            Text(text = monthSpend, color = Color(0xFFE53935), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
             }

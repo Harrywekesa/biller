@@ -35,15 +35,19 @@ object MpesaParser {
 
 
     // RECEIVED MONEY
-    private val RECEIVED_MONEY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+You\s+have\s+received\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>[A-Za-z\s]+)(?<phone>(?:07|01|254)\d{8})?\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\..*?New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
+    private val RECEIVED_MONEY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s*You\s+have\s+received\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>[A-Za-z\s]+)(?<phone>(?:07|01|254)\d{8})?\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\.?.*?New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
     
     // AGENT WITHDRAWAL (e.g. OJM... Confirmed. on 12/4/23 at 10:30 AMWithdraw Ksh500.00 from 123456 - AGENT NAME New M-PESA balance is Ksh...)
     private val WITHDRAW_CASH_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)(?:\s*)?[Ww]ithdraw\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>[^.]+)\.?[^\d]*New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}).*?(?:Transaction\s+cost,\s+(?:Ksh|Kshs)\s?(?<cost>[\d,]+\.\d{2}))?""".toRegex(RegexOption.IGNORE_CASE)
 
-    // FULIZA OVERDRAFT IDENTIFIER
-    // Secondary pass to extract Fuliza usage if it exists at the end of *any* receipt type.
-    // e.g., "...Fuliza M-Pesa amount is Ksh100.00. Fee charged Ksh 1.05."
-    private val FULIZA_REGEX = """Fuliza\s+M-Pesa\s+amount\s+is\s+(?:Ksh|Kshs)\s?(?<fAmount>[\d,]+(?:\.\d{2})?).*?Fee\s+charged\s+(?:Ksh|Kshs)\s?(?<fFee>[\d,]+(?:\.\d{2})?)""".toRegex(RegexOption.IGNORE_CASE)
+    // FULIZA OVERDRAFT IDENTIFIER (Standalone)
+    // E.g., "UCEIR9COVD Confirmed. Fuliza M-PESA amount is Ksh 100.00. Access Fee charged Ksh 1.00. Total Fuliza M-PESA outstanding amount is Ksh1660.84 due on 05/04/26."
+    private val STANDALONE_FULIZA_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+Fuliza\s+M-PESA\s+amount\s+is\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\.\s+(?:Access\s+)?Fee\s+charged\s+(?:Ksh|Kshs)\s?(?<cost>[\d,]+\.\d{2})\.\s+Total\s+Fuliza\s+M-PESA\s+outstanding\s+amount\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2})\s+due\s+on\s+(?<date>\d{1,2}/\d{1,2}/\d{2})""".toRegex(RegexOption.IGNORE_CASE)
+
+    // FULIZA REPAYMENT (Deduction from M-Pesa to pay Fuliza)
+    // E.g., "UCCIR94WN8 Confirmed. Ksh 750.00 from your M-PESA has been used to partially pay your outstanding Fuliza M-PESA. Your available Fuliza M-PESA limit is Ksh 1711.40. M-PESA balance is Ksh0.00."
+    private val FULIZA_REPAY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+your\s+M-PESA\s+has\s+been\s+used\s+to\s+partially\s+pay\s+your\s+outstanding\s+Fuliza.*?M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
+
 
     fun parseMessage(smsBody: String): ParsedMpesaResult? {
         val cleanBody = smsBody.replace("\n", " ").trim()
@@ -54,6 +58,64 @@ object MpesaParser {
             ?: parseReceivedMoney(cleanBody)
             ?: parseWithdrawCash(cleanBody)
             ?: parseAirtime(cleanBody)
+            ?: parseFulizaRepayment(cleanBody)
+            ?: parseStandaloneFuliza(cleanBody)
+    }
+
+    private fun parseFulizaRepayment(sms: String): ParsedMpesaResult? {
+        val match = FULIZA_REPAY_REGEX.find(sms) ?: return null
+        
+        val amountStr = match.groups["amount"]?.value?.replace(",", "") ?: "0.0"
+        
+        var balance: Double? = null
+        try {
+            val balStr = match.groups["balance"]?.value?.replace(",", "")
+            if (balStr != null) balance = balStr.toDouble()
+        } catch(e: Exception) {}
+
+        return ParsedMpesaResult(
+            receiptNumber = match.groups["receipt"]?.value ?: "",
+            type = TransactionType.PAYBILL,
+            amount = amountStr.toDouble(),
+            transactionCost = 0.0,
+            timestamp = System.currentTimeMillis(), // Fuliza repay SMS doesn't have a time/date stamp in this format
+            recipientName = "Fuliza Repayment",
+            balance = balance,
+            rawSms = sms
+        )
+    }
+
+    private fun parseStandaloneFuliza(sms: String): ParsedMpesaResult? {
+        val match = STANDALONE_FULIZA_REGEX.find(sms) ?: return null
+        
+        val amountStr = match.groups["amount"]?.value?.replace(",", "") ?: "0.0"
+        val costStr = match.groups["cost"]?.value?.replace(",", "") ?: "0.0"
+        val fee = costStr.toDoubleOrNull() ?: 0.0
+        
+        var balance: Double? = null
+        try {
+            val balStr = match.groups["balance"]?.value?.replace(",", "")
+            if (balStr != null) balance = balStr.toDouble()
+        } catch(e: Exception) {}
+
+        // Standalone Fuliza SMS doesn't have a time, just a date.
+        // We will default the time to now, but keep the date.
+        // E.g "05/04/26"
+        val dateStr = match.groups["date"]?.value ?: ""
+        val timestamp = parseRobustDate("$dateStr 11:59 PM") // Use end of day roughly, or current time if it fails
+        
+        return ParsedMpesaResult(
+            receiptNumber = match.groups["receipt"]?.value ?: "",
+            type = TransactionType.PAYBILL, // We can categorize it as PAYBILL/BUY_GOODS or create a new FULIZA type
+            amount = amountStr.toDouble(),
+            transactionCost = fee,
+            timestamp = timestamp,
+            recipientName = "Fuliza M-PESA",
+            balance = balance, // Note: This is outstanding balance, not M-Pesa balance. But we'll leave it as balance for now.
+            fulizaAmount = amountStr.toDouble(),
+            fulizaFee = fee,
+            rawSms = sms
+        )
     }
 
     private fun parsePaybill(sms: String): ParsedMpesaResult? {
@@ -151,11 +213,12 @@ object MpesaParser {
             if (balStr != null) balance = balStr.toDouble()
         } catch(e: Exception) {}
         
-        // Secondary Pass for Fuliza Overdraft
+        // Secondary Pass for Fuliza Overdraft (Legacy embedded format)
         var fulizaAmount: Double? = null
         var fulizaFee: Double? = null
         try {
-            val fulizaMatch = FULIZA_REGEX.find(raw)
+            val FULIZA_LEGACY_REGEX = """Fuliza\s+M-Pesa\s+amount\s+is\s+(?:Ksh|Kshs)\s?(?<fAmount>[\d,]+(?:\.\d{2})?).*?Fee\s+charged\s+(?:Ksh|Kshs)\s?(?<fFee>[\d,]+(?:\.\d{2})?)""".toRegex(RegexOption.IGNORE_CASE)
+            val fulizaMatch = FULIZA_LEGACY_REGEX.find(raw)
             if (fulizaMatch != null) {
                 fulizaAmount = fulizaMatch.groups["fAmount"]?.value?.replace(",", "")?.toDoubleOrNull()
                 fulizaFee = fulizaMatch.groups["fFee"]?.value?.replace(",", "")?.toDoubleOrNull()

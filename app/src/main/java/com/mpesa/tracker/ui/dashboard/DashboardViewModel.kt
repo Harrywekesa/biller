@@ -21,6 +21,7 @@ import com.mpesa.tracker.framework.services.SmsSyncService
 data class DashboardUiState(
     val totalBalance: String = "0.00",
     val monthSpend: String = "0.00",
+    val monthIncome: String = "0.00",
     val recentTransactions: List<TransactionEntity> = emptyList(),
     val isSyncing: Boolean = false
 )
@@ -56,10 +57,37 @@ class DashboardViewModel @Inject constructor(
             initialValue = "0.00"
         )
         
+    val monthIncome: StateFlow<String> = repository.getTotalIncomeForPeriod(ReportPeriod.THIS_MONTH)
+        .map { total ->
+            total?.let { currencyFormatter.format(it) } ?: "0.00"
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = "0.00"
+        )
+        
     val totalBalance: StateFlow<String> = repository.getAllTransactions()
         .map { transactions ->
-            val latestTx = transactions.firstOrNull { it.balance != null }
-            latestTx?.balance?.let { currencyFormatter.format(it) } ?: "0.00"
+            val latestTxWithBalance = transactions.firstOrNull { it.balance != null }
+            
+            if (latestTxWithBalance != null) {
+                // If the most recent transaction was a standalone Fuliza query/update, 
+                // the "balance" parsed in it is the outstanding Fuliza debt.
+                if (latestTxWithBalance.recipientName == "Fuliza M-PESA" && latestTxWithBalance.balance != null) {
+                    "-${currencyFormatter.format(latestTxWithBalance.balance)}"
+                } 
+                // If it's a standard transaction that utilized Fuliza, M-Pesa balance is 0.00
+                // We should reflect the utilized amount as negative if true M-Pesa balance is 0
+                else if (latestTxWithBalance.balance == 0.0 && latestTxWithBalance.fulizaAmount != null) {
+                    "-${currencyFormatter.format(latestTxWithBalance.fulizaAmount)}"
+                } 
+                else {
+                    currencyFormatter.format(latestTxWithBalance.balance)
+                }
+            } else {
+                "0.00"
+            }
         }
         .stateIn(
             scope = viewModelScope,

@@ -35,6 +35,9 @@ interface TransactionDao {
     @Query("SELECT SUM(transactionCost) FROM transactions WHERE dateTimestamp BETWEEN :startDate AND :endDate")
     fun getTotalFeesBetween(startDate: Long, endDate: Long): Flow<Double?>
 
+    @Query("SELECT SUM(amount) FROM transactions WHERE isIncome = 1 AND dateTimestamp BETWEEN :startDate AND :endDate")
+    fun getTotalIncomeBetween(startDate: Long, endDate: Long): Flow<Double?>
+
     @Query("SELECT * FROM transactions WHERE receiptNumber = :receiptNumber LIMIT 1")
     suspend fun getTransactionByReceipt(receiptNumber: String): TransactionEntity?
 

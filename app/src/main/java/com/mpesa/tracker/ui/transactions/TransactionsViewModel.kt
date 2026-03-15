@@ -32,21 +32,37 @@ class TransactionsViewModel @Inject constructor(
     private val _filterByCategoryId = MutableStateFlow<Int?>(null)
     val filterByCategoryId: StateFlow<Int?> = _filterByCategoryId.asStateFlow()
 
+    private val _filterFulizaOnly = MutableStateFlow(false)
+    val filterFulizaOnly: StateFlow<Boolean> = _filterFulizaOnly.asStateFlow()
+
+    private data class FilterArgs(
+        val query: String,
+        val incomeOnly: Boolean,
+        val uncategorizedOnly: Boolean,
+        val categoryIdFilter: Int?,
+        val fulizaOnly: Boolean
+    )
+
     val transactions: StateFlow<List<TransactionEntity>> = combine(
         repository.getAllTransactions(),
-        _searchQuery,
-        _filterIncomeOnly,
-        _filterUncategorizedOnly,
-        _filterByCategoryId
-    ) { txList, query, incomeOnly, uncategorizedOnly, categoryIdFilter ->
+        combine(
+            _searchQuery,
+            _filterIncomeOnly,
+            _filterUncategorizedOnly,
+            _filterByCategoryId,
+            _filterFulizaOnly
+        ) { q, i, u, c, f -> FilterArgs(q, i, u, c, f) }
+    ) { txList, filters ->
         txList.filter { tx ->
-            val matchesQuery = query.isBlank() || 
-                               tx.recipientName.contains(query, ignoreCase = true) || 
-                               tx.receiptNumber.contains(query, ignoreCase = true)
-            val matchesType = !incomeOnly || tx.isIncome
-            val matchesUncategorized = !uncategorizedOnly || tx.categoryId == null
-            val matchesCategoryFilter = categoryIdFilter == null || tx.categoryId == categoryIdFilter
-            matchesQuery && matchesType && matchesUncategorized && matchesCategoryFilter
+            val matchesQuery = filters.query.isBlank() || 
+                               tx.recipientName.contains(filters.query, ignoreCase = true) || 
+                               tx.receiptNumber.contains(filters.query, ignoreCase = true)
+            val matchesType = !filters.incomeOnly || tx.isIncome
+            val matchesUncategorized = !filters.uncategorizedOnly || tx.categoryId == null
+            val matchesCategoryFilter = filters.categoryIdFilter == null || tx.categoryId == filters.categoryIdFilter
+            val matchesFuliza = !filters.fulizaOnly || (tx.fulizaAmount != null && tx.fulizaAmount > 0)
+            
+            matchesQuery && matchesType && matchesUncategorized && matchesCategoryFilter && matchesFuliza
         }.sortedByDescending { it.dateTimestamp }
     }.stateIn(
         scope = viewModelScope,
@@ -75,6 +91,13 @@ class TransactionsViewModel @Inject constructor(
         if (_filterUncategorizedOnly.value) {
             _filterIncomeOnly.value = false
             _filterByCategoryId.value = null
+        }
+    }
+
+    fun toggleFulizaFilter() {
+        _filterFulizaOnly.value = !_filterFulizaOnly.value
+        if (_filterFulizaOnly.value) {
+            _filterIncomeOnly.value = false
         }
     }
     

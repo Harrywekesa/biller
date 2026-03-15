@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -30,6 +30,7 @@ import java.util.Locale
 fun TransactionsScreen(
     onNavigateBack: () -> Unit,
     initialCategoryId: Int? = null,
+    initialIncomeOnly: Boolean = false,
     viewModel: TransactionsViewModel = hiltViewModel()
 ) {
     val transactions by viewModel.transactions.collectAsState()
@@ -44,10 +45,15 @@ fun TransactionsScreen(
     var showCreateCategoryDialog by remember { mutableStateOf(false) }
     var newCategoryName by remember { mutableStateOf("") }
 
-    LaunchedEffect(initialCategoryId) {
-        if (initialCategoryId == -1) {
+    LaunchedEffect(initialCategoryId, initialIncomeOnly) {
+        if (initialIncomeOnly) {
+            // First time load: if they came from "Money In", instantly toggle the Income filter on
+            if (!viewModel.filterIncomeOnly.value) {
+                viewModel.toggleIncomeFilter()
+            }
+        } else if (initialCategoryId == -1) {
             viewModel.toggleUncategorizedFilter()
-        } else {
+        } else if (initialCategoryId != null) {
             viewModel.setCategoryFilter(initialCategoryId)
         }
     }
@@ -71,7 +77,7 @@ fun TransactionsScreen(
                             CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = PrimaryGreen)
                         } else {
                             Icon(
-                                imageVector = Icons.Filled.DeleteSweep, 
+                                imageVector = Icons.Filled.Sync, 
                                 contentDescription = "Clear & Resync SMS",
                                 tint = PrimaryGreen
                             )
@@ -101,43 +107,64 @@ fun TransactionsScreen(
                 )
             )
             
+            val uncategorizedOnlySelected by viewModel.filterUncategorizedOnly.collectAsState()
+            val fulizaOnlySelected by viewModel.filterFulizaOnly.collectAsState()
+            val activeCategoryFilterId by viewModel.filterByCategoryId.collectAsState()
+
             // Filter Chips
-            Row(
+            androidx.compose.foundation.lazy.LazyRow(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilterChip(
-                    selected = filterIncomeOnly,
-                    onClick = { viewModel.toggleIncomeFilter() },
-                    label = { Text("Income Only") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
-                        selectedLabelColor = PrimaryGreen
-                    )
-                )
-                
-                FilterChip(
-                    selected = viewModel.filterUncategorizedOnly.collectAsState().value,
-                    onClick = { viewModel.toggleUncategorizedFilter() },
-                    label = { Text("Uncategorized") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
-                        selectedLabelColor = PrimaryGreen
-                    )
-                )
-
-                val activeCategoryFilterId = viewModel.filterByCategoryId.collectAsState().value
-                if (activeCategoryFilterId != null) {
-                    val catName = categories.find { it.id == activeCategoryFilterId }?.name ?: "Category"
+                item {
                     FilterChip(
-                        selected = true,
-                        onClick = { viewModel.setCategoryFilter(null) }, // Tap to clear
-                        label = { Text("X  $catName") },
+                        selected = filterIncomeOnly,
+                        onClick = { viewModel.toggleIncomeFilter() },
+                        label = { Text("Income Only") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
                             selectedLabelColor = PrimaryGreen
                         )
                     )
+                }
+                
+                item {
+                    FilterChip(
+                        selected = uncategorizedOnlySelected,
+                        onClick = { viewModel.toggleUncategorizedFilter() },
+                        label = { Text("Uncategorized") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
+                            selectedLabelColor = PrimaryGreen
+                        )
+                    )
+                }
+
+                item {
+                    FilterChip(
+                        selected = fulizaOnlySelected,
+                        onClick = { viewModel.toggleFulizaFilter() },
+                        label = { Text("Fuliza") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
+                            selectedLabelColor = PrimaryGreen
+                        )
+                    )
+                }
+
+                if (activeCategoryFilterId != null) {
+                    item {
+                        val catName = categories.find { it.id == activeCategoryFilterId }?.name ?: "Category"
+                        FilterChip(
+                            selected = true,
+                            onClick = { viewModel.setCategoryFilter(null) }, // Tap to clear
+                            label = { Text("X  $catName") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
+                                selectedLabelColor = PrimaryGreen
+                            )
+                        )
+                    }
                 }
             }
             

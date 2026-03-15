@@ -46,7 +46,7 @@ sealed class Screen {
     object Landing : Screen()
     object Dashboard : Screen()
     object Analytics : Screen()
-    data class Transactions(val categoryId: Int? = null) : Screen()
+    data class Transactions(val categoryId: Int? = null, val incomeOnly: Boolean = false) : Screen()
     object Subscriptions : Screen()
 }
 
@@ -144,7 +144,7 @@ class MainActivity : FragmentActivity() {
                                 Screen.Dashboard -> {
                                     com.mpesa.tracker.ui.dashboard.DashboardScreen(
                                         onNavigateBack = { currentScreen = Screen.Landing },
-                                        onNavigateToTransactions = { currentScreen = Screen.Transactions() }
+                                        onNavigateToTransactions = { incomeOnly -> currentScreen = Screen.Transactions(incomeOnly = incomeOnly) }
                                     )
                                 }
                                 Screen.Analytics -> {
@@ -154,9 +154,11 @@ class MainActivity : FragmentActivity() {
                                     )
                                 }
                                 is Screen.Transactions -> {
+                                    val txScreen = currentScreen as Screen.Transactions
                                     com.mpesa.tracker.ui.transactions.TransactionsScreen(
                                         onNavigateBack = { currentScreen = Screen.Landing },
-                                        initialCategoryId = (currentScreen as Screen.Transactions).categoryId
+                                        initialCategoryId = txScreen.categoryId,
+                                        initialIncomeOnly = txScreen.incomeOnly
                                     )
                                 }
                                 Screen.Subscriptions -> {

@@ -71,6 +71,11 @@ class TransactionRepository @Inject constructor(
         return transactionDao.getTotalSpentBetween(start, end, spendingTypes)
     }
 
+    fun getTotalIncomeForPeriod(period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null): Flow<Double?> {
+        val (start, end) = getTimestampRangeForPeriod(period, customStart, customEnd)
+        return transactionDao.getTotalIncomeBetween(start, end)
+    }
+
     suspend fun insertTransaction(transaction: TransactionEntity) {
         var finalTx = transaction
         
@@ -184,60 +189,61 @@ class TransactionRepository @Inject constructor(
     }
 
     /**
-     * Scans the user's historical transactions to automatically detect recurring payments.
-     * Criteria: Same merchant, similar amounts, and a roughly 30-day (or 7-day) cadence.
+     * Replaced auto-detection with explicit categorization. 
+     * Users assign bills to the "Subscriptions" category, and this function reads those merchants.
      */
     fun getAutoDetectedSubscriptions(): Flow<List<com.mpesa.tracker.data.local.entities.SubscriptionEntity>> {
-        return transactionDao.getAllTransactions().map { allTxs ->
-            val detectedSubs = mutableListOf<com.mpesa.tracker.data.local.entities.SubscriptionEntity>()
+        return kotlinx.coroutines.flow.combine(
+            categoryDao.getAllCategories(),
+            transactionDao.getAllTransactions()
+        ) { categories, allTxs ->
             
-            // Group spending by exact merchant name (ignoring tiny variations if possible, testing exact first)
-            val merchantGroups = allTxs.filter { !it.isIncome }.groupBy { it.recipientName }
+            val subCategory = categories.firstOrNull { it.name.equals("Subscriptions", ignoreCase = true) }
+            val subCategoryId = subCategory?.id ?: -1
+            
+            if (subCategoryId == -1) {
+                return@combine emptyList()
+            }
+            
+            val detectedSubs = mutableListOf<com.mpesa.tracker.data.local.entities.SubscriptionEntity>()
+            val subscriptionTxs = allTxs.filter { it.categoryId == subCategoryId && !it.isIncome }
+            val merchantGroups = subscriptionTxs.groupBy { it.recipientName }
             
             for ((merchant, txs) in merchantGroups) {
-                // Need at least 2 occurrences to establish a pattern
-                if (txs.size < 2) continue
-                
-                // Sort chronologically
                 val sortedTxs = txs.sortedBy { it.dateTimestamp }
                 
-                // Check average time gap between payments
-                var totalGapTime = 0L
-                for (i in 1 until sortedTxs.size) {
-                    totalGapTime += (sortedTxs[i].dateTimestamp - sortedTxs[i-1].dateTimestamp)
+                // Average the amount
+                val avgAmount = txs.map { it.amount }.average()
+                
+                // Base the billing cycle on the most common gap, or default to 30.
+                var avgGapDays = 30
+                if (sortedTxs.size >= 2) {
+                    var totalGapTime = 0L
+                    for (i in 1 until sortedTxs.size) {
+                        totalGapTime += (sortedTxs[i].dateTimestamp - sortedTxs[i-1].dateTimestamp)
+                    }
+                    val avgGapMs = totalGapTime / (sortedTxs.size - 1)
+                    avgGapDays = (avgGapMs / (1000 * 60 * 60 * 24)).toInt().coerceAtLeast(1)
                 }
                 
-                val avgGapMs = totalGapTime / (sortedTxs.size - 1)
-                val avgGapDays = (avgGapMs / (1000 * 60 * 60 * 24)).toInt()
+                val lastPaymentDate = sortedTxs.last().dateTimestamp
+                val nextExpectedDate = lastPaymentDate + (avgGapDays * 24L * 60 * 60 * 1000)
                 
-                // Check if the gap is reasonably close to a standard billing cycle
-                val isMonthly = avgGapDays in 25..35
-                val isWeekly = avgGapDays in 6..8
-                
-                if (isMonthly || isWeekly) {
-                    // Average the amount
-                    val avgAmount = txs.map { it.amount }.average()
-                    
-                    // Estimate next payment date based on the LAST payment + the average gap
-                    val lastPaymentDate = sortedTxs.last().dateTimestamp
-                    val nextExpectedDate = lastPaymentDate + avgGapMs
-                    
-                    detectedSubs.add(
-                        com.mpesa.tracker.data.local.entities.SubscriptionEntity(
-                            id = merchant.hashCode(), // transient ID for UI
-                            name = merchant.take(20), // Truncate super long strings
-                            merchantNameMatcher = merchant,
-                            amount = avgAmount,
-                            isActive = true,
-                            billingCycleDays = if (isMonthly) 30 else 7,
-                            categoryId = sortedTxs.last().categoryId,
-                            expectedNextPaymentDate = nextExpectedDate
-                        )
+                detectedSubs.add(
+                    com.mpesa.tracker.data.local.entities.SubscriptionEntity(
+                        id = merchant.hashCode(),
+                        name = merchant.take(20),
+                        merchantNameMatcher = merchant,
+                        amount = avgAmount,
+                        isActive = true,
+                        billingCycleDays = avgGapDays,
+                        categoryId = subCategoryId,
+                        expectedNextPaymentDate = nextExpectedDate
                     )
-                }
+                )
             }
             // Sort by next expected payment date (closest first)
-            detectedSubs.sortedBy { it.expectedNextPaymentDate }
+            detectedSubs.sortedBy { it.expectedNextPaymentDate ?: Long.MAX_VALUE }
         }
     }
 }
