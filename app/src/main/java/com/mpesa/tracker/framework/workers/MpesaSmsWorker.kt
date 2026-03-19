@@ -45,6 +45,8 @@ class MpesaSmsWorker @AssistedInject constructor(
                     balance = parsedResult.balance,
                     categoryId = null, 
                     isIncome = parsedResult.type == TransactionType.RECEIVED_MONEY,
+                    fulizaAmount = parsedResult.fulizaAmount,
+                    fulizaFee = parsedResult.fulizaFee,
                     rawSmsBody = parsedResult.rawSms
                 )
                 

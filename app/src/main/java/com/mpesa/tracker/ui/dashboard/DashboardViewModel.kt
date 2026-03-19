@@ -77,11 +77,21 @@ class DashboardViewModel @Inject constructor(
                 if (latestTxWithBalance.recipientName == "Fuliza M-PESA" && latestTxWithBalance.balance != null) {
                     "-${currencyFormatter.format(latestTxWithBalance.balance)}"
                 } 
-                // If it's a standard transaction that utilized Fuliza, M-Pesa balance is 0.00
-                // We should reflect the utilized amount as negative if true M-Pesa balance is 0
-                else if (latestTxWithBalance.balance == 0.0 && latestTxWithBalance.fulizaAmount != null) {
-                    "-${currencyFormatter.format(latestTxWithBalance.fulizaAmount)}"
-                } 
+                // If M-Pesa balance is 0.00, they might have an outstanding Fuliza debt
+                else if (latestTxWithBalance.balance == 0.0) {
+                    // Find the most recent standalone Fuliza message to capture the true debt
+                    val recentFuliza = transactions.firstOrNull { it.recipientName == "Fuliza M-PESA" && it.balance != null }
+                    
+                    if (recentFuliza != null && recentFuliza.balance != null && recentFuliza.balance > 0) {
+                        "-${currencyFormatter.format(recentFuliza.balance)}"
+                    } 
+                    else if (latestTxWithBalance.fulizaAmount != null) {
+                        "-${currencyFormatter.format(latestTxWithBalance.fulizaAmount)}"
+                    } 
+                    else {
+                        "0.00"
+                    }
+                }  
                 else {
                     currencyFormatter.format(latestTxWithBalance.balance)
                 }

@@ -39,8 +39,9 @@ class SmsSyncService @Inject constructor(
                 
                 while (it.moveToNext()) {
                     val body = it.getString(bodyIndex) ?: ""
+                    val smsDate = it.getLong(dateIndex)
                     
-                    val parsedResult = MpesaParser.parseMessage(body)
+                    val parsedResult = MpesaParser.parseMessage(body, smsDate)
                     if (parsedResult != null) {
                         try {
                             var transaction = TransactionEntity(

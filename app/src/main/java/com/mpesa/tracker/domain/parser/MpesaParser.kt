@@ -49,7 +49,7 @@ object MpesaParser {
     private val FULIZA_REPAY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+your\s+M-PESA\s+has\s+been\s+used\s+to\s+partially\s+pay\s+your\s+outstanding\s+Fuliza.*?M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
 
 
-    fun parseMessage(smsBody: String): ParsedMpesaResult? {
+    fun parseMessage(smsBody: String, smsTimestamp: Long? = null): ParsedMpesaResult? {
         val cleanBody = smsBody.replace("\n", " ").trim()
 
         return parsePaybill(cleanBody) 
@@ -58,11 +58,11 @@ object MpesaParser {
             ?: parseReceivedMoney(cleanBody)
             ?: parseWithdrawCash(cleanBody)
             ?: parseAirtime(cleanBody)
-            ?: parseFulizaRepayment(cleanBody)
-            ?: parseStandaloneFuliza(cleanBody)
+            ?: parseFulizaRepayment(cleanBody, smsTimestamp)
+            ?: parseStandaloneFuliza(cleanBody, smsTimestamp)
     }
 
-    private fun parseFulizaRepayment(sms: String): ParsedMpesaResult? {
+    private fun parseFulizaRepayment(sms: String, smsTimestamp: Long?): ParsedMpesaResult? {
         val match = FULIZA_REPAY_REGEX.find(sms) ?: return null
         
         val amountStr = match.groups["amount"]?.value?.replace(",", "") ?: "0.0"
@@ -74,18 +74,18 @@ object MpesaParser {
         } catch(e: Exception) {}
 
         return ParsedMpesaResult(
-            receiptNumber = match.groups["receipt"]?.value ?: "",
+            receiptNumber = (match.groups["receipt"]?.value ?: "") + "-REPAY",
             type = TransactionType.PAYBILL,
             amount = amountStr.toDouble(),
             transactionCost = 0.0,
-            timestamp = System.currentTimeMillis(), // Fuliza repay SMS doesn't have a time/date stamp in this format
+            timestamp = smsTimestamp ?: System.currentTimeMillis(), // Use real SMS received time or fallback to now
             recipientName = "Fuliza Repayment",
             balance = balance,
             rawSms = sms
         )
     }
 
-    private fun parseStandaloneFuliza(sms: String): ParsedMpesaResult? {
+    private fun parseStandaloneFuliza(sms: String, smsTimestamp: Long?): ParsedMpesaResult? {
         val match = STANDALONE_FULIZA_REGEX.find(sms) ?: return null
         
         val amountStr = match.groups["amount"]?.value?.replace(",", "") ?: "0.0"
@@ -98,14 +98,10 @@ object MpesaParser {
             if (balStr != null) balance = balStr.toDouble()
         } catch(e: Exception) {}
 
-        // Standalone Fuliza SMS doesn't have a time, just a date.
-        // We will default the time to now, but keep the date.
-        // E.g "05/04/26"
-        val dateStr = match.groups["date"]?.value ?: ""
-        val timestamp = parseRobustDate("$dateStr 11:59 PM") // Use end of day roughly, or current time if it fails
+        val timestamp = smsTimestamp ?: System.currentTimeMillis() // Use actual SMS time over Due Date
         
         return ParsedMpesaResult(
-            receiptNumber = match.groups["receipt"]?.value ?: "",
+            receiptNumber = (match.groups["receipt"]?.value ?: "") + "-FULIZA",
             type = TransactionType.PAYBILL, // We can categorize it as PAYBILL/BUY_GOODS or create a new FULIZA type
             amount = amountStr.toDouble(),
             transactionCost = fee,
