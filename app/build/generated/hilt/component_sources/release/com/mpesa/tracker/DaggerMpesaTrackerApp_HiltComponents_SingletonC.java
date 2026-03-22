@@ -2,24 +2,44 @@ package com.mpesa.tracker;
 
 import android.app.Activity;
 import android.app.Service;
+import android.content.Context;
 import android.view.View;
 import androidx.fragment.app.Fragment;
+import androidx.hilt.work.HiltWorkerFactory;
+import androidx.hilt.work.WorkerAssistedFactory;
+import androidx.hilt.work.WorkerFactoryModule_ProvideFactoryFactory;
 import androidx.lifecycle.SavedStateHandle;
 import androidx.lifecycle.ViewModel;
+import androidx.work.ListenableWorker;
+import androidx.work.WorkerParameters;
 import com.mpesa.tracker.data.local.AppDatabase;
+import com.mpesa.tracker.data.local.dao.BudgetDao;
 import com.mpesa.tracker.data.local.dao.CategoryDao;
+import com.mpesa.tracker.data.local.dao.CustomRuleDao;
+import com.mpesa.tracker.data.local.dao.SubscriptionDao;
 import com.mpesa.tracker.data.local.dao.TransactionDao;
 import com.mpesa.tracker.data.repository.TransactionRepository;
 import com.mpesa.tracker.di.DatabaseModule_ProvideAppDatabaseFactory;
+import com.mpesa.tracker.di.DatabaseModule_ProvideBudgetDaoFactory;
 import com.mpesa.tracker.di.DatabaseModule_ProvideCategoryDaoFactory;
+import com.mpesa.tracker.di.DatabaseModule_ProvideCustomRuleDaoFactory;
+import com.mpesa.tracker.di.DatabaseModule_ProvideSubscriptionDaoFactory;
 import com.mpesa.tracker.di.DatabaseModule_ProvideTransactionDaoFactory;
+import com.mpesa.tracker.domain.classifier.CategorizationEngine;
+import com.mpesa.tracker.domain.classifier.DictionaryClassifier;
+import com.mpesa.tracker.domain.classifier.TensorFlowLiteClassifier;
 import com.mpesa.tracker.framework.receivers.SmsReceiver;
-import com.mpesa.tracker.framework.receivers.SmsReceiver_MembersInjector;
 import com.mpesa.tracker.framework.services.SmsSyncService;
+import com.mpesa.tracker.framework.workers.MpesaSmsWorker;
+import com.mpesa.tracker.framework.workers.MpesaSmsWorker_AssistedFactory;
 import com.mpesa.tracker.ui.analytics.AnalyticsViewModel;
 import com.mpesa.tracker.ui.analytics.AnalyticsViewModel_HiltModules;
 import com.mpesa.tracker.ui.dashboard.DashboardViewModel;
 import com.mpesa.tracker.ui.dashboard.DashboardViewModel_HiltModules;
+import com.mpesa.tracker.ui.subscriptions.SubscriptionsViewModel;
+import com.mpesa.tracker.ui.subscriptions.SubscriptionsViewModel_HiltModules;
+import com.mpesa.tracker.ui.transactions.TransactionsViewModel;
+import com.mpesa.tracker.ui.transactions.TransactionsViewModel_HiltModules;
 import dagger.hilt.android.ActivityRetainedLifecycle;
 import dagger.hilt.android.ViewModelLifecycle;
 import dagger.hilt.android.internal.builders.ActivityComponentBuilder;
@@ -44,6 +64,7 @@ import dagger.internal.LazyClassKeyMap;
 import dagger.internal.MapBuilder;
 import dagger.internal.Preconditions;
 import dagger.internal.Provider;
+import dagger.internal.SingleCheck;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -382,7 +403,7 @@ public final class DaggerMpesaTrackerApp_HiltComponents_SingletonC {
 
     @Override
     public Map<Class<?>, Boolean> getViewModelKeys() {
-      return LazyClassKeyMap.<Boolean>of(MapBuilder.<String, Boolean>newMapBuilder(2).put(LazyClassKeyProvider.com_mpesa_tracker_ui_analytics_AnalyticsViewModel, AnalyticsViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_mpesa_tracker_ui_dashboard_DashboardViewModel, DashboardViewModel_HiltModules.KeyModule.provide()).build());
+      return LazyClassKeyMap.<Boolean>of(MapBuilder.<String, Boolean>newMapBuilder(4).put(LazyClassKeyProvider.com_mpesa_tracker_ui_analytics_AnalyticsViewModel, AnalyticsViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_mpesa_tracker_ui_dashboard_DashboardViewModel, DashboardViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_mpesa_tracker_ui_subscriptions_SubscriptionsViewModel, SubscriptionsViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_mpesa_tracker_ui_transactions_TransactionsViewModel, TransactionsViewModel_HiltModules.KeyModule.provide()).build());
     }
 
     @Override
@@ -402,20 +423,32 @@ public final class DaggerMpesaTrackerApp_HiltComponents_SingletonC {
 
     private MainActivity injectMainActivity2(MainActivity instance) {
       MainActivity_MembersInjector.injectSmsSyncService(instance, singletonCImpl.smsSyncServiceProvider.get());
+      MainActivity_MembersInjector.injectCategoryDao(instance, singletonCImpl.categoryDao());
+      MainActivity_MembersInjector.injectSubscriptionDao(instance, singletonCImpl.subscriptionDao());
       return instance;
     }
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
+      static String com_mpesa_tracker_ui_subscriptions_SubscriptionsViewModel = "com.mpesa.tracker.ui.subscriptions.SubscriptionsViewModel";
+
       static String com_mpesa_tracker_ui_dashboard_DashboardViewModel = "com.mpesa.tracker.ui.dashboard.DashboardViewModel";
 
       static String com_mpesa_tracker_ui_analytics_AnalyticsViewModel = "com.mpesa.tracker.ui.analytics.AnalyticsViewModel";
+
+      static String com_mpesa_tracker_ui_transactions_TransactionsViewModel = "com.mpesa.tracker.ui.transactions.TransactionsViewModel";
+
+      @KeepFieldType
+      SubscriptionsViewModel com_mpesa_tracker_ui_subscriptions_SubscriptionsViewModel2;
 
       @KeepFieldType
       DashboardViewModel com_mpesa_tracker_ui_dashboard_DashboardViewModel2;
 
       @KeepFieldType
       AnalyticsViewModel com_mpesa_tracker_ui_analytics_AnalyticsViewModel2;
+
+      @KeepFieldType
+      TransactionsViewModel com_mpesa_tracker_ui_transactions_TransactionsViewModel2;
     }
   }
 
@@ -429,6 +462,10 @@ public final class DaggerMpesaTrackerApp_HiltComponents_SingletonC {
     private Provider<AnalyticsViewModel> analyticsViewModelProvider;
 
     private Provider<DashboardViewModel> dashboardViewModelProvider;
+
+    private Provider<SubscriptionsViewModel> subscriptionsViewModelProvider;
+
+    private Provider<TransactionsViewModel> transactionsViewModelProvider;
 
     private ViewModelCImpl(SingletonCImpl singletonCImpl,
         ActivityRetainedCImpl activityRetainedCImpl, SavedStateHandle savedStateHandleParam,
@@ -445,11 +482,13 @@ public final class DaggerMpesaTrackerApp_HiltComponents_SingletonC {
         final ViewModelLifecycle viewModelLifecycleParam) {
       this.analyticsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 0);
       this.dashboardViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 1);
+      this.subscriptionsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 2);
+      this.transactionsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 3);
     }
 
     @Override
     public Map<Class<?>, javax.inject.Provider<ViewModel>> getHiltViewModelMap() {
-      return LazyClassKeyMap.<javax.inject.Provider<ViewModel>>of(MapBuilder.<String, javax.inject.Provider<ViewModel>>newMapBuilder(2).put(LazyClassKeyProvider.com_mpesa_tracker_ui_analytics_AnalyticsViewModel, ((Provider) analyticsViewModelProvider)).put(LazyClassKeyProvider.com_mpesa_tracker_ui_dashboard_DashboardViewModel, ((Provider) dashboardViewModelProvider)).build());
+      return LazyClassKeyMap.<javax.inject.Provider<ViewModel>>of(MapBuilder.<String, javax.inject.Provider<ViewModel>>newMapBuilder(4).put(LazyClassKeyProvider.com_mpesa_tracker_ui_analytics_AnalyticsViewModel, ((Provider) analyticsViewModelProvider)).put(LazyClassKeyProvider.com_mpesa_tracker_ui_dashboard_DashboardViewModel, ((Provider) dashboardViewModelProvider)).put(LazyClassKeyProvider.com_mpesa_tracker_ui_subscriptions_SubscriptionsViewModel, ((Provider) subscriptionsViewModelProvider)).put(LazyClassKeyProvider.com_mpesa_tracker_ui_transactions_TransactionsViewModel, ((Provider) transactionsViewModelProvider)).build());
     }
 
     @Override
@@ -459,15 +498,25 @@ public final class DaggerMpesaTrackerApp_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_mpesa_tracker_ui_dashboard_DashboardViewModel = "com.mpesa.tracker.ui.dashboard.DashboardViewModel";
+      static String com_mpesa_tracker_ui_subscriptions_SubscriptionsViewModel = "com.mpesa.tracker.ui.subscriptions.SubscriptionsViewModel";
+
+      static String com_mpesa_tracker_ui_transactions_TransactionsViewModel = "com.mpesa.tracker.ui.transactions.TransactionsViewModel";
 
       static String com_mpesa_tracker_ui_analytics_AnalyticsViewModel = "com.mpesa.tracker.ui.analytics.AnalyticsViewModel";
 
+      static String com_mpesa_tracker_ui_dashboard_DashboardViewModel = "com.mpesa.tracker.ui.dashboard.DashboardViewModel";
+
       @KeepFieldType
-      DashboardViewModel com_mpesa_tracker_ui_dashboard_DashboardViewModel2;
+      SubscriptionsViewModel com_mpesa_tracker_ui_subscriptions_SubscriptionsViewModel2;
+
+      @KeepFieldType
+      TransactionsViewModel com_mpesa_tracker_ui_transactions_TransactionsViewModel2;
 
       @KeepFieldType
       AnalyticsViewModel com_mpesa_tracker_ui_analytics_AnalyticsViewModel2;
+
+      @KeepFieldType
+      DashboardViewModel com_mpesa_tracker_ui_dashboard_DashboardViewModel2;
     }
 
     private static final class SwitchingProvider<T> implements Provider<T> {
@@ -495,7 +544,13 @@ public final class DaggerMpesaTrackerApp_HiltComponents_SingletonC {
           return (T) new AnalyticsViewModel(singletonCImpl.transactionRepositoryProvider.get());
 
           case 1: // com.mpesa.tracker.ui.dashboard.DashboardViewModel 
-          return (T) new DashboardViewModel(singletonCImpl.transactionRepositoryProvider.get());
+          return (T) new DashboardViewModel(singletonCImpl.transactionRepositoryProvider.get(), singletonCImpl.smsSyncServiceProvider.get());
+
+          case 2: // com.mpesa.tracker.ui.subscriptions.SubscriptionsViewModel 
+          return (T) new SubscriptionsViewModel(singletonCImpl.transactionRepositoryProvider.get());
+
+          case 3: // com.mpesa.tracker.ui.transactions.TransactionsViewModel 
+          return (T) new TransactionsViewModel(singletonCImpl.transactionRepositoryProvider.get(), singletonCImpl.smsSyncServiceProvider.get());
 
           default: throw new AssertionError(id);
         }
@@ -579,6 +634,12 @@ public final class DaggerMpesaTrackerApp_HiltComponents_SingletonC {
 
     private Provider<AppDatabase> provideAppDatabaseProvider;
 
+    private Provider<TensorFlowLiteClassifier> tensorFlowLiteClassifierProvider;
+
+    private Provider<CategorizationEngine> categorizationEngineProvider;
+
+    private Provider<MpesaSmsWorker_AssistedFactory> mpesaSmsWorker_AssistedFactoryProvider;
+
     private Provider<TransactionRepository> transactionRepositoryProvider;
 
     private Provider<SmsSyncService> smsSyncServiceProvider;
@@ -593,25 +654,49 @@ public final class DaggerMpesaTrackerApp_HiltComponents_SingletonC {
       return DatabaseModule_ProvideTransactionDaoFactory.provideTransactionDao(provideAppDatabaseProvider.get());
     }
 
+    private Map<String, javax.inject.Provider<WorkerAssistedFactory<? extends ListenableWorker>>> mapOfStringAndProviderOfWorkerAssistedFactoryOf(
+        ) {
+      return Collections.<String, javax.inject.Provider<WorkerAssistedFactory<? extends ListenableWorker>>>singletonMap("com.mpesa.tracker.framework.workers.MpesaSmsWorker", ((Provider) mpesaSmsWorker_AssistedFactoryProvider));
+    }
+
+    private HiltWorkerFactory hiltWorkerFactory() {
+      return WorkerFactoryModule_ProvideFactoryFactory.provideFactory(mapOfStringAndProviderOfWorkerAssistedFactoryOf());
+    }
+
     private CategoryDao categoryDao() {
       return DatabaseModule_ProvideCategoryDaoFactory.provideCategoryDao(provideAppDatabaseProvider.get());
+    }
+
+    private CustomRuleDao customRuleDao() {
+      return DatabaseModule_ProvideCustomRuleDaoFactory.provideCustomRuleDao(provideAppDatabaseProvider.get());
+    }
+
+    private BudgetDao budgetDao() {
+      return DatabaseModule_ProvideBudgetDaoFactory.provideBudgetDao(provideAppDatabaseProvider.get());
+    }
+
+    private SubscriptionDao subscriptionDao() {
+      return DatabaseModule_ProvideSubscriptionDaoFactory.provideSubscriptionDao(provideAppDatabaseProvider.get());
     }
 
     @SuppressWarnings("unchecked")
     private void initialize(final ApplicationContextModule applicationContextModuleParam) {
       this.provideAppDatabaseProvider = new DelegateFactory<>();
-      DelegateFactory.setDelegate(provideAppDatabaseProvider, DoubleCheck.provider(new SwitchingProvider<AppDatabase>(singletonCImpl, 0)));
-      this.transactionRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<TransactionRepository>(singletonCImpl, 2));
-      this.smsSyncServiceProvider = DoubleCheck.provider(new SwitchingProvider<SmsSyncService>(singletonCImpl, 1));
+      DelegateFactory.setDelegate(provideAppDatabaseProvider, DoubleCheck.provider(new SwitchingProvider<AppDatabase>(singletonCImpl, 1)));
+      this.tensorFlowLiteClassifierProvider = DoubleCheck.provider(new SwitchingProvider<TensorFlowLiteClassifier>(singletonCImpl, 3));
+      this.categorizationEngineProvider = DoubleCheck.provider(new SwitchingProvider<CategorizationEngine>(singletonCImpl, 2));
+      this.mpesaSmsWorker_AssistedFactoryProvider = SingleCheck.provider(new SwitchingProvider<MpesaSmsWorker_AssistedFactory>(singletonCImpl, 0));
+      this.transactionRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<TransactionRepository>(singletonCImpl, 5));
+      this.smsSyncServiceProvider = DoubleCheck.provider(new SwitchingProvider<SmsSyncService>(singletonCImpl, 4));
     }
 
     @Override
     public void injectMpesaTrackerApp(MpesaTrackerApp mpesaTrackerApp) {
+      injectMpesaTrackerApp2(mpesaTrackerApp);
     }
 
     @Override
     public void injectSmsReceiver(SmsReceiver smsReceiver) {
-      injectSmsReceiver2(smsReceiver);
     }
 
     @Override
@@ -629,8 +714,8 @@ public final class DaggerMpesaTrackerApp_HiltComponents_SingletonC {
       return new ServiceCBuilder(singletonCImpl);
     }
 
-    private SmsReceiver injectSmsReceiver2(SmsReceiver instance) {
-      SmsReceiver_MembersInjector.injectTransactionDao(instance, transactionDao());
+    private MpesaTrackerApp injectMpesaTrackerApp2(MpesaTrackerApp instance) {
+      MpesaTrackerApp_MembersInjector.injectWorkerFactory(instance, hiltWorkerFactory());
       return instance;
     }
 
@@ -648,14 +733,28 @@ public final class DaggerMpesaTrackerApp_HiltComponents_SingletonC {
       @Override
       public T get() {
         switch (id) {
-          case 0: // com.mpesa.tracker.data.local.AppDatabase 
+          case 0: // com.mpesa.tracker.framework.workers.MpesaSmsWorker_AssistedFactory 
+          return (T) new MpesaSmsWorker_AssistedFactory() {
+            @Override
+            public MpesaSmsWorker create(Context context, WorkerParameters workerParams) {
+              return new MpesaSmsWorker(context, workerParams, singletonCImpl.transactionDao(), singletonCImpl.categorizationEngineProvider.get());
+            }
+          };
+
+          case 1: // com.mpesa.tracker.data.local.AppDatabase 
           return (T) DatabaseModule_ProvideAppDatabaseFactory.provideAppDatabase(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.provideAppDatabaseProvider);
 
-          case 1: // com.mpesa.tracker.framework.services.SmsSyncService 
-          return (T) new SmsSyncService(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.transactionRepositoryProvider.get());
+          case 2: // com.mpesa.tracker.domain.classifier.CategorizationEngine 
+          return (T) new CategorizationEngine(new DictionaryClassifier(), singletonCImpl.tensorFlowLiteClassifierProvider.get());
 
-          case 2: // com.mpesa.tracker.data.repository.TransactionRepository 
-          return (T) new TransactionRepository(singletonCImpl.transactionDao(), singletonCImpl.categoryDao());
+          case 3: // com.mpesa.tracker.domain.classifier.TensorFlowLiteClassifier 
+          return (T) new TensorFlowLiteClassifier(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
+
+          case 4: // com.mpesa.tracker.framework.services.SmsSyncService 
+          return (T) new SmsSyncService(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.transactionRepositoryProvider.get(), singletonCImpl.categorizationEngineProvider.get());
+
+          case 5: // com.mpesa.tracker.data.repository.TransactionRepository 
+          return (T) new TransactionRepository(singletonCImpl.transactionDao(), singletonCImpl.categoryDao(), singletonCImpl.customRuleDao(), singletonCImpl.budgetDao());
 
           default: throw new AssertionError(id);
         }

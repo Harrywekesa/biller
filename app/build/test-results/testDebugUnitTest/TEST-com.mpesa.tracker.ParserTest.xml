@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mpesa.tracker.ParserTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-03-19T15:46:29" hostname="DESKTOP-IQFU7RO" time="0.043">
+  <properties/>
+  <testcase name="testParseFuliza" classname="com.mpesa.tracker.ParserTest" time="0.043"/>
+  <system-out><![CDATA[MATCHED: 1372.23
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

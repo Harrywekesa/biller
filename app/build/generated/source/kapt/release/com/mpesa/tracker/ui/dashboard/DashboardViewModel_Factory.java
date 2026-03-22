@@ -1,6 +1,7 @@
 package com.mpesa.tracker.ui.dashboard;
 
 import com.mpesa.tracker.data.repository.TransactionRepository;
+import com.mpesa.tracker.framework.services.SmsSyncService;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
 import dagger.internal.QualifierMetadata;
@@ -25,21 +26,27 @@ import javax.inject.Provider;
 public final class DashboardViewModel_Factory implements Factory<DashboardViewModel> {
   private final Provider<TransactionRepository> repositoryProvider;
 
-  public DashboardViewModel_Factory(Provider<TransactionRepository> repositoryProvider) {
+  private final Provider<SmsSyncService> smsSyncServiceProvider;
+
+  public DashboardViewModel_Factory(Provider<TransactionRepository> repositoryProvider,
+      Provider<SmsSyncService> smsSyncServiceProvider) {
     this.repositoryProvider = repositoryProvider;
+    this.smsSyncServiceProvider = smsSyncServiceProvider;
   }
 
   @Override
   public DashboardViewModel get() {
-    return newInstance(repositoryProvider.get());
+    return newInstance(repositoryProvider.get(), smsSyncServiceProvider.get());
   }
 
   public static DashboardViewModel_Factory create(
-      Provider<TransactionRepository> repositoryProvider) {
-    return new DashboardViewModel_Factory(repositoryProvider);
+      Provider<TransactionRepository> repositoryProvider,
+      Provider<SmsSyncService> smsSyncServiceProvider) {
+    return new DashboardViewModel_Factory(repositoryProvider, smsSyncServiceProvider);
   }
 
-  public static DashboardViewModel newInstance(TransactionRepository repository) {
-    return new DashboardViewModel(repository);
+  public static DashboardViewModel newInstance(TransactionRepository repository,
+      SmsSyncService smsSyncService) {
+    return new DashboardViewModel(repository, smsSyncService);
   }
 }

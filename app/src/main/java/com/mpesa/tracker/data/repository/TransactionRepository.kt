@@ -129,33 +129,47 @@ class TransactionRepository @Inject constructor(
     private fun getTimestampRangeForPeriod(period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null): Pair<Long, Long> {
         val calendar = Calendar.getInstance()
         
-        val endTimestamp = System.currentTimeMillis()
+        var endTimestamp = System.currentTimeMillis()
         var startTimestamp = 0L
 
         when (period) {
             ReportPeriod.THIS_WEEK -> {
                 calendar.set(Calendar.HOUR_OF_DAY, 0)
-                calendar.clear(Calendar.MINUTE)
-                calendar.clear(Calendar.SECOND)
-                calendar.clear(Calendar.MILLISECOND)
+                calendar.set(Calendar.MINUTE, 0)
+                calendar.set(Calendar.SECOND, 0)
+                calendar.set(Calendar.MILLISECOND, 0)
                 calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
                 startTimestamp = calendar.timeInMillis
+                
+                val endCal = Calendar.getInstance()
+                endCal.timeInMillis = startTimestamp
+                endCal.add(Calendar.DAY_OF_YEAR, 7)
+                endCal.add(Calendar.MILLISECOND, -1)
+                endTimestamp = endCal.timeInMillis
             }
             ReportPeriod.THIS_MONTH -> {
                 calendar.set(Calendar.DAY_OF_MONTH, 1)
                 calendar.set(Calendar.HOUR_OF_DAY, 0)
-                calendar.clear(Calendar.MINUTE)
-                calendar.clear(Calendar.SECOND)
-                calendar.clear(Calendar.MILLISECOND)
+                calendar.set(Calendar.MINUTE, 0)
+                calendar.set(Calendar.SECOND, 0)
+                calendar.set(Calendar.MILLISECOND, 0)
                 startTimestamp = calendar.timeInMillis
+                
+                val endCal = Calendar.getInstance()
+                endCal.set(Calendar.DAY_OF_MONTH, endCal.getActualMaximum(Calendar.DAY_OF_MONTH))
+                endCal.set(Calendar.HOUR_OF_DAY, 23)
+                endCal.set(Calendar.MINUTE, 59)
+                endCal.set(Calendar.SECOND, 59)
+                endCal.set(Calendar.MILLISECOND, 999)
+                endTimestamp = endCal.timeInMillis
             }
             ReportPeriod.LAST_MONTH -> {
                 calendar.add(Calendar.MONTH, -1)
                 calendar.set(Calendar.DAY_OF_MONTH, 1)
                 calendar.set(Calendar.HOUR_OF_DAY, 0)
-                calendar.clear(Calendar.MINUTE)
-                calendar.clear(Calendar.SECOND)
-                calendar.clear(Calendar.MILLISECOND)
+                calendar.set(Calendar.MINUTE, 0)
+                calendar.set(Calendar.SECOND, 0)
+                calendar.set(Calendar.MILLISECOND, 0)
                 startTimestamp = calendar.timeInMillis
                 
                 val endCalendar = Calendar.getInstance()
@@ -169,6 +183,7 @@ class TransactionRepository @Inject constructor(
             }
             ReportPeriod.ALL_TIME -> {
                 startTimestamp = 0L // Epoch start
+                endTimestamp = Long.MAX_VALUE
             }
             ReportPeriod.CUSTOM -> {
                 return Pair(customStart ?: 0L, customEnd ?: endTimestamp)

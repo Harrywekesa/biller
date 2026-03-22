@@ -1,6 +1,8 @@
 package com.mpesa.tracker.data.repository;
 
+import com.mpesa.tracker.data.local.dao.BudgetDao;
 import com.mpesa.tracker.data.local.dao.CategoryDao;
+import com.mpesa.tracker.data.local.dao.CustomRuleDao;
 import com.mpesa.tracker.data.local.dao.TransactionDao;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
@@ -28,24 +30,32 @@ public final class TransactionRepository_Factory implements Factory<TransactionR
 
   private final Provider<CategoryDao> categoryDaoProvider;
 
+  private final Provider<CustomRuleDao> customRuleDaoProvider;
+
+  private final Provider<BudgetDao> budgetDaoProvider;
+
   public TransactionRepository_Factory(Provider<TransactionDao> transactionDaoProvider,
-      Provider<CategoryDao> categoryDaoProvider) {
+      Provider<CategoryDao> categoryDaoProvider, Provider<CustomRuleDao> customRuleDaoProvider,
+      Provider<BudgetDao> budgetDaoProvider) {
     this.transactionDaoProvider = transactionDaoProvider;
     this.categoryDaoProvider = categoryDaoProvider;
+    this.customRuleDaoProvider = customRuleDaoProvider;
+    this.budgetDaoProvider = budgetDaoProvider;
   }
 
   @Override
   public TransactionRepository get() {
-    return newInstance(transactionDaoProvider.get(), categoryDaoProvider.get());
+    return newInstance(transactionDaoProvider.get(), categoryDaoProvider.get(), customRuleDaoProvider.get(), budgetDaoProvider.get());
   }
 
   public static TransactionRepository_Factory create(
-      Provider<TransactionDao> transactionDaoProvider, Provider<CategoryDao> categoryDaoProvider) {
-    return new TransactionRepository_Factory(transactionDaoProvider, categoryDaoProvider);
+      Provider<TransactionDao> transactionDaoProvider, Provider<CategoryDao> categoryDaoProvider,
+      Provider<CustomRuleDao> customRuleDaoProvider, Provider<BudgetDao> budgetDaoProvider) {
+    return new TransactionRepository_Factory(transactionDaoProvider, categoryDaoProvider, customRuleDaoProvider, budgetDaoProvider);
   }
 
   public static TransactionRepository newInstance(TransactionDao transactionDao,
-      CategoryDao categoryDao) {
-    return new TransactionRepository(transactionDao, categoryDao);
+      CategoryDao categoryDao, CustomRuleDao customRuleDao, BudgetDao budgetDao) {
+    return new TransactionRepository(transactionDao, categoryDao, customRuleDao, budgetDao);
   }
 }

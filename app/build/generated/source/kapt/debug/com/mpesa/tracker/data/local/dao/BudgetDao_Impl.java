@@ -66,7 +66,7 @@ public final class BudgetDao_Impl implements BudgetDao {
 
   @Override
   public Object insertOrUpdateBudget(final BudgetEntity budget,
-      final Continuation<? super Unit> $completion) {
+      final Continuation<? super Unit> arg1) {
     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
       @Override
       @NonNull
@@ -80,12 +80,12 @@ public final class BudgetDao_Impl implements BudgetDao {
           __db.endTransaction();
         }
       }
-    }, $completion);
+    }, arg1);
   }
 
   @Override
   public Object deleteBudgetForCategory(final int categoryId,
-      final Continuation<? super Unit> $completion) {
+      final Continuation<? super Unit> arg1) {
     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
       @Override
       @NonNull
@@ -106,12 +106,12 @@ public final class BudgetDao_Impl implements BudgetDao {
           __preparedStmtOfDeleteBudgetForCategory.release(_stmt);
         }
       }
-    }, $completion);
+    }, arg1);
   }
 
   @Override
   public Object getBudgetForCategory(final int categoryId,
-      final Continuation<? super BudgetEntity> $completion) {
+      final Continuation<? super BudgetEntity> arg1) {
     final String _sql = "SELECT * FROM budgets WHERE categoryId = ? LIMIT 1";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
     int _argIndex = 1;
@@ -144,7 +144,7 @@ public final class BudgetDao_Impl implements BudgetDao {
           _statement.release();
         }
       }
-    }, $completion);
+    }, arg1);
   }
 
   @Override
