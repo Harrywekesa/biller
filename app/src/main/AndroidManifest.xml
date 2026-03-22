@@ -6,6 +6,9 @@
     <!-- Crucial Permission for parsing historic and incoming M-Pesa SMS -->
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    
+    <!-- Required for legacy storage operations on Android 9 and below -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <application
         android:name=".MpesaTrackerApp"

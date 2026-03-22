@@ -85,7 +85,7 @@ class AnalyticsViewModel @Inject constructor(
                 val result = exporter.exportTransactionsToCsv(allTx)
                 
                 if (result.isSuccess) {
-                    _exportState.value = ExportState.Success("Exported to Downloads folder.")
+                    _exportState.value = ExportState.Success(result.getOrDefault("Exported to Downloads folder."))
                 } else {
                     _exportState.value = ExportState.Error(result.exceptionOrNull()?.message ?: "Export failed")
                 }

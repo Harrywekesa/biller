@@ -35,7 +35,7 @@ object MpesaParser {
 
 
     // RECEIVED MONEY
-    private val RECEIVED_MONEY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s*You\s+have\s+received\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>[A-Za-z\s]+)(?<phone>(?:07|01|254)\d{8})?\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\.?.*?New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
+    private val RECEIVED_MONEY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s*You\s+have\s+received\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>[a-zA-Z0-9\s\-]+?)\s*(?<phone>(?:07|01|254)\d{8})?\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\.?.*?New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
     
     // AGENT WITHDRAWAL (e.g. OJM... Confirmed. on 12/4/23 at 10:30 AMWithdraw Ksh500.00 from 123456 - AGENT NAME New M-PESA balance is Ksh...)
     private val WITHDRAW_CASH_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)(?:\s*)?[Ww]ithdraw\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>[^.]+)\.?[^\d]*New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}).*?(?:Transaction\s+cost,\s+(?:Ksh|Kshs)\s?(?<cost>[\d,]+\.\d{2}))?""".toRegex(RegexOption.IGNORE_CASE)
@@ -46,7 +46,7 @@ object MpesaParser {
 
     // FULIZA REPAYMENT (Deduction from M-Pesa to pay Fuliza)
     // E.g., "UCCIR94WN8 Confirmed. Ksh 750.00 from your M-PESA has been used to partially pay your outstanding Fuliza M-PESA. Your available Fuliza M-PESA limit is Ksh 1711.40. M-PESA balance is Ksh0.00."
-    private val FULIZA_REPAY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+your\s+M-PESA\s+has\s+been\s+used\s+to\s+partially\s+pay\s+your\s+outstanding\s+Fuliza.*?M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
+    private val FULIZA_REPAY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+your\s+M-PESA\s+has\s+been\s+used\s+to\s+(?:partially|fully)\s+pay\s+your\s+outstanding\s+Fuliza.*?M-PESA\s+balance\s+is\s+(?:(?:Ksh|Kshs)\s?)?(?<balance>[\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
 
 
     fun parseMessage(smsBody: String, smsTimestamp: Long? = null): ParsedMpesaResult? {

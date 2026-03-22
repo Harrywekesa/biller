@@ -1,6 +1,6 @@
 -- Merging decision tree log ---
 provider#androidx.startup.InitializationProvider
-INJECTED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:40:9-49:20
+INJECTED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:43:9-52:20
 MERGED from [androidx.work:work-runtime:2.8.1] C:\Users\Pi\.gradle\caches\transforms-4\91b58344ed2514a673d184fe48917774\transformed\work-runtime-2.8.1\AndroidManifest.xml:29:9-37:20
 MERGED from [androidx.work:work-runtime:2.8.1] C:\Users\Pi\.gradle\caches\transforms-4\91b58344ed2514a673d184fe48917774\transformed\work-runtime-2.8.1\AndroidManifest.xml:29:9-37:20
 MERGED from [androidx.emoji2:emoji2:1.3.0] C:\Users\Pi\.gradle\caches\transforms-4\63ac4635581e8dcd520b6ea5e1a2134d\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
@@ -12,19 +12,19 @@ MERGED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Pi\.grad
 MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\Pi\.gradle\caches\transforms-4\398aa4f411eb1648168e079b6881aaa5\transformed\jetified-startup-runtime-1.1.1\AndroidManifest.xml:26:9-30:34
 MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\Pi\.gradle\caches\transforms-4\398aa4f411eb1648168e079b6881aaa5\transformed\jetified-startup-runtime-1.1.1\AndroidManifest.xml:26:9-30:34
 	tools:node
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:44:13-31
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:47:13-31
 	android:authorities
 		INJECTED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:42:13-68
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:45:13-68
 	android:exported
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:43:13-37
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:46:13-37
 	android:name
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:41:13-67
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:44:13-67
 manifest
-ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:2:1-52:12
-INJECTED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:2:1-52:12
-INJECTED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:2:1-52:12
-INJECTED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:2:1-52:12
+ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:2:1-55:12
+INJECTED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:2:1-55:12
+INJECTED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:2:1-55:12
+INJECTED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:2:1-55:12
 MERGED from [androidx.biometric:biometric:1.2.0-alpha05] C:\Users\Pi\.gradle\caches\transforms-4\d8b8cd4ea9d6c3fd74e80eae87b81eb4\transformed\biometric-1.2.0-alpha05\AndroidManifest.xml:17:1-27:12
 MERGED from [androidx.appcompat:appcompat:1.2.0] C:\Users\Pi\.gradle\caches\transforms-4\e0d48d7dbe3ecccf7d50ec1a106bbce6\transformed\appcompat-1.2.0\AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.hilt:hilt-work:1.1.0] C:\Users\Pi\.gradle\caches\transforms-4\faa7f2278887dea357981d121d9e545b\transformed\jetified-hilt-work-1.1.0\AndroidManifest.xml:17:1-22:12
@@ -124,9 +124,15 @@ uses-permission#android.permission.RECEIVE_SMS
 ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:8:5-70
 	android:name
 		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:8:22-67
+uses-permission#android.permission.WRITE_EXTERNAL_STORAGE
+ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:11:5-108
+	android:maxSdkVersion
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:11:79-105
+	android:name
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:11:22-78
 application
-ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:10:5-50:19
-INJECTED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:10:5-50:19
+ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:13:5-53:19
+INJECTED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:13:5-53:19
 MERGED from [androidx.compose.ui:ui-test-manifest:1.6.7] C:\Users\Pi\.gradle\caches\transforms-4\f717e1041a5b587ab34e857299d75bfb\transformed\jetified-ui-test-manifest-1.6.7\AndroidManifest.xml:22:5-26:19
 MERGED from [androidx.compose.ui:ui-test-manifest:1.6.7] C:\Users\Pi\.gradle\caches\transforms-4\f717e1041a5b587ab34e857299d75bfb\transformed\jetified-ui-test-manifest-1.6.7\AndroidManifest.xml:22:5-26:19
 MERGED from [androidx.compose.ui:ui-tooling-android:1.6.7] C:\Users\Pi\.gradle\caches\transforms-4\c90a0ac634a3aa6abb55846454dd029f\transformed\jetified-ui-tooling-release\AndroidManifest.xml:22:5-26:19
@@ -158,64 +164,64 @@ MERGED from [com.google.android.odml:image:1.0.0-beta1] C:\Users\Pi\.gradle\cach
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.12.0] C:\Users\Pi\.gradle\caches\transforms-4\43f36e4c14a358dbbdd605de14e523ba\transformed\core-1.12.0\AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:16:9-35
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:19:9-35
 	android:label
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:15:9-41
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:18:9-41
 	android:roundIcon
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:14:9-54
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:17:9-54
 	tools:targetApi
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:18:9-29
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:21:9-29
 	android:icon
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:13:9-43
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:16:9-43
 	android:allowBackup
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:12:9-35
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:15:9-35
 	android:theme
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:17:9-50
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:20:9-50
 	android:name
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:11:9-40
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:14:9-40
 activity#com.mpesa.tracker.MainActivity
-ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:20:9-28:20
+ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:23:9-31:20
 	android:exported
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:22:13-36
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:25:13-36
 	android:theme
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:23:13-54
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:26:13-54
 	android:name
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:21:13-41
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:24:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:24:13-27:29
+ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:27:13-30:29
 action#android.intent.action.MAIN
-ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:25:17-69
+ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:28:17-69
 	android:name
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:25:25-66
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:28:25-66
 category#android.intent.category.LAUNCHER
-ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:26:17-77
+ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:29:17-77
 	android:name
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:26:27-74
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:29:27-74
 receiver#com.mpesa.tracker.framework.receivers.SmsReceiver
-ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:30:9-37:20
+ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:33:9-40:20
 	android:exported
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:32:13-36
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:35:13-36
 	android:permission
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:33:13-66
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:36:13-66
 	android:name
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:31:13-60
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:34:13-60
 intent-filter#action:name:android.provider.Telephony.SMS_RECEIVED
-ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:34:13-36:29
+ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:37:13-39:29
 	android:priority
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:34:28-50
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:37:28-50
 action#android.provider.Telephony.SMS_RECEIVED
-ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:35:17-82
+ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:38:17-82
 	android:name
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:35:25-79
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:38:25-79
 meta-data#androidx.work.WorkManagerInitializer
-ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:45:13-48:39
+ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:48:13-51:39
 REJECTED from [androidx.work:work-runtime:2.8.1] C:\Users\Pi\.gradle\caches\transforms-4\91b58344ed2514a673d184fe48917774\transformed\work-runtime-2.8.1\AndroidManifest.xml:34:13-36:52
 	tools:node
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:48:17-36
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:51:17-36
 	android:value
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:47:17-49
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:50:17-49
 	android:name
-		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:46:17-68
+		ADDED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml:49:17-68
 uses-sdk
 INJECTED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from C:\Users\Pi\Videos\biller\app\src\main\AndroidManifest.xml
