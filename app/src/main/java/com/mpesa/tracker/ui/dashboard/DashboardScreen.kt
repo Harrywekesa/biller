@@ -237,7 +237,7 @@ fun TransactionMockItem(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(text = name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Text(text = category, color = Color.Gray, fontSize = 12.sp)
             }

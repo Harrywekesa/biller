@@ -24,7 +24,7 @@ object MpesaParser {
     private val PAYBILL_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+paid\s+to\s+(?<recipient>[^.]+)\.\s+on\s+(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\.(?:\s*New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}))?(?:\.\s*Transaction\s+cost,\s+(?:Ksh|Kshs)\s?(?<cost>[\d,]+\.\d{2}))?""".toRegex(RegexOption.IGNORE_CASE)
 
     // SEND MONEY (e.g., OJM... Confirmed. Ksh500 sent to JOHN DOE 07123...)
-    private val SEND_MONEY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+sent\s+to\s+(?<recipient>[A-Za-z\s]+)(?<phone>(?:07|01|254)\d{8})?\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\..*?New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}).*?(?:Transaction\s+cost,\s+(?:Ksh|Kshs)\s?(?<cost>[\d,]+\.\d{2}))?""".toRegex(RegexOption.IGNORE_CASE)
+    private val SEND_MONEY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+sent\s+to\s+(?<recipient>[A-Za-z\s]+)(?<phone>(?:07|01|254)[\d*]{8})?\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\..*?New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}).*?(?:Transaction\s+cost,\s+(?:Ksh|Kshs)\s?(?<cost>[\d,]+\.\d{2}))?""".toRegex(RegexOption.IGNORE_CASE)
     
     // SEND TO PAYBILL VER. 2 (Data Bundles / Safaricom)
     // E.g. "UCEIR9BIPO Confirmed. Ksh50.00 sent to SAFARICOM DATA BUNDLES for account SAFARICOM DATA BUNDLES on 14/3/26 at 5:16 PM New M-PESA balance is Ksh0.00."
@@ -35,7 +35,7 @@ object MpesaParser {
 
 
     // RECEIVED MONEY
-    private val RECEIVED_MONEY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s*You\s+have\s+received\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>[a-zA-Z0-9\s\-]+?)\s*(?<phone>(?:07|01|254)\d{8})?\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\.?.*?New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
+    private val RECEIVED_MONEY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s*You\s+have\s+received\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>[a-zA-Z0-9\s\-]+?)\s*(?<phone>(?:07|01|254)[\d*]{8})?\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\.?.*?New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
     
     // AGENT WITHDRAWAL (e.g. OJM... Confirmed. on 12/4/23 at 10:30 AMWithdraw Ksh500.00 from 123456 - AGENT NAME New M-PESA balance is Ksh...)
     private val WITHDRAW_CASH_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)(?:\s*)?[Ww]ithdraw\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>[^.]+)\.?[^\d]*New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}).*?(?:Transaction\s+cost,\s+(?:Ksh|Kshs)\s?(?<cost>[\d,]+\.\d{2}))?""".toRegex(RegexOption.IGNORE_CASE)
@@ -53,8 +53,8 @@ object MpesaParser {
         val cleanBody = smsBody.replace("\n", " ").trim()
 
         return parsePaybill(cleanBody) 
-            ?: parseSendMoney(cleanBody) 
             ?: parseSentToAccount(cleanBody)
+            ?: parseSendMoney(cleanBody) 
             ?: parseReceivedMoney(cleanBody)
             ?: parseWithdrawCash(cleanBody)
             ?: parseAirtime(cleanBody)
