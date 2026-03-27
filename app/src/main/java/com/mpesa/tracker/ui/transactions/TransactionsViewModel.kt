@@ -20,6 +20,9 @@ class TransactionsViewModel @Inject constructor(
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
+    private val _selectedSimId = MutableStateFlow<Int?>(null)
+    val selectedSimId: StateFlow<Int?> = _selectedSimId.asStateFlow()
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
@@ -46,16 +49,27 @@ class TransactionsViewModel @Inject constructor(
         val fulizaOnly: Boolean
     )
 
-    val transactions: StateFlow<List<TransactionEntity>> = combine(
-        repository.getAllTransactions(),
-        combine(
-            _searchQuery,
-            _filterIncomeOnly,
-            _filterUncategorizedOnly,
-            _filterByCategoryId,
-            _filterFulizaOnly
-        ) { q, i, u, c, f -> FilterArgs(q, i, u, c, f) }
-    ) { txList, filters ->
+    val activeSimIds: StateFlow<List<Int>> = repository.getActiveSimIds()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val transactions: StateFlow<List<TransactionEntity>> = _selectedSimId
+        .flatMapLatest { simId ->
+            repository.getAllTransactions(simId = simId)
+        }
+        .combine(
+            combine(
+                _searchQuery,
+                _filterIncomeOnly,
+                _filterUncategorizedOnly,
+                _filterByCategoryId,
+                _filterFulizaOnly
+            ) { q, i, u, c, f -> FilterArgs(q, i, u, c, f) }
+        ) { txList, filters ->
         txList.filter { tx ->
             val matchesQuery = filters.query.isBlank() || 
                                tx.recipientName.contains(filters.query, ignoreCase = true) || 
@@ -82,6 +96,10 @@ class TransactionsViewModel @Inject constructor(
 
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
+    }
+
+    fun setSimFilter(simId: Int?) {
+        _selectedSimId.value = simId
     }
 
     fun toggleIncomeFilter() {

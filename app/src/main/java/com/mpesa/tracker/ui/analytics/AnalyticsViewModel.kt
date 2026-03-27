@@ -22,6 +22,23 @@ class AnalyticsViewModel @Inject constructor(
     private val _selectedPeriod = MutableStateFlow(ReportPeriod.THIS_MONTH)
     val selectedPeriod: StateFlow<ReportPeriod> = _selectedPeriod.asStateFlow()
     
+    private val _selectedSimId = MutableStateFlow<Int?>(null)
+    val selectedSimId: StateFlow<Int?> = _selectedSimId.asStateFlow()
+
+    val activeSimIds: StateFlow<List<Int>> = repository.getActiveSimIds()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    private data class AnalyticsArgs(
+        val period: ReportPeriod,
+        val start: Long?,
+        val end: Long?,
+        val simId: Int?
+    )
+    
     // Custom date overrides
     private val _customStartDate = MutableStateFlow<Long?>(null)
     val customStartDate: StateFlow<Long?> = _customStartDate.asStateFlow()
@@ -35,10 +52,11 @@ class AnalyticsViewModel @Inject constructor(
     val expensesByCategory: StateFlow<List<CategoryExpense>> = combine(
         _selectedPeriod,
         _customStartDate,
-        _customEndDate
-    ) { period, start, end -> Triple(period, start, end) }
-        .flatMapLatest { (period, start, end) -> 
-            repository.getExpensesByCategory(period, start, end) 
+        _customEndDate,
+        _selectedSimId
+    ) { period, start, end, simId -> AnalyticsArgs(period, start, end, simId) }
+        .flatMapLatest { args -> 
+            repository.getExpensesByCategory(args.period, args.start, args.end, args.simId) 
         }
         .stateIn(
             scope = viewModelScope,
@@ -50,10 +68,11 @@ class AnalyticsViewModel @Inject constructor(
     val dailySpendTrend: StateFlow<List<DailySpend>> = combine(
         _selectedPeriod,
         _customStartDate,
-        _customEndDate
-    ) { period, start, end -> Triple(period, start, end) }
-        .flatMapLatest { (period, start, end) -> 
-            repository.getDailySpendingTrend(period, start, end) 
+        _customEndDate,
+        _selectedSimId
+    ) { period, start, end, simId -> AnalyticsArgs(period, start, end, simId) }
+        .flatMapLatest { args -> 
+            repository.getDailySpendingTrend(args.period, args.start, args.end, args.simId) 
         }
         .stateIn(
             scope = viewModelScope,
@@ -67,6 +86,10 @@ class AnalyticsViewModel @Inject constructor(
             _customStartDate.value = null
             _customEndDate.value = null
         }
+    }
+    
+    fun setSimFilter(simId: Int?) {
+        _selectedSimId.value = simId
     }
     
     fun setCustomDateRange(start: Long?, end: Long?) {

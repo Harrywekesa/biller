@@ -54,6 +54,8 @@ fun AnalyticsScreen(
     val dailySpend by viewModel.dailySpendTrend.collectAsState()
     val selectedPeriod by viewModel.selectedPeriod.collectAsState()
     val exportState by viewModel.exportState.collectAsState()
+    val selectedSimId by viewModel.selectedSimId.collectAsState()
+    val activeSimIds by viewModel.activeSimIds.collectAsState()
     val context = LocalContext.current
 
     val dateRangePickerState = rememberDateRangePickerState()
@@ -183,7 +185,41 @@ fun AnalyticsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // SIM Selection Filter
+            if (activeSimIds.isNotEmpty()) {
+                androidx.compose.foundation.lazy.LazyRow(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        FilterChip(
+                            selected = selectedSimId == null,
+                            onClick = { viewModel.setSimFilter(null) },
+                            label = { Text("All Lines") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
+                                selectedLabelColor = PrimaryGreen
+                            )
+                        )
+                    }
+                    items(activeSimIds.size) { index ->
+                        val simId = activeSimIds[index]
+                        FilterChip(
+                            selected = selectedSimId == simId,
+                            onClick = { viewModel.setSimFilter(simId) },
+                            label = { Text("SIM ${index + 1}") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
+                                selectedLabelColor = PrimaryGreen
+                            )
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
 
             if (expenses.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {

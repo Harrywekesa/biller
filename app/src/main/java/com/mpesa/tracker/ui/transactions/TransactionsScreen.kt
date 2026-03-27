@@ -41,6 +41,8 @@ fun TransactionsScreen(
     val filterIncomeOnly by viewModel.filterIncomeOnly.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val selectedIds by viewModel.selectedTransactionIds.collectAsState()
+    val selectedSimId by viewModel.selectedSimId.collectAsState()
+    val activeSimIds by viewModel.activeSimIds.collectAsState()
     
     var selectedTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var isSelectionMode by remember { mutableStateOf(false) }
@@ -162,6 +164,31 @@ fun TransactionsScreen(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (activeSimIds.isNotEmpty()) {
+                    item {
+                        FilterChip(
+                            selected = selectedSimId == null,
+                            onClick = { viewModel.setSimFilter(null) },
+                            label = { Text("All Lines") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
+                                selectedLabelColor = PrimaryGreen
+                            )
+                        )
+                    }
+                    items(activeSimIds) { simId ->
+                        FilterChip(
+                            selected = selectedSimId == simId,
+                            onClick = { viewModel.setSimFilter(simId) },
+                            label = { Text("SIM ${activeSimIds.indexOf(simId) + 1}") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
+                                selectedLabelColor = PrimaryGreen
+                            )
+                        )
+                    }
+                }
+                
                 item {
                     FilterChip(
                         selected = filterIncomeOnly,
