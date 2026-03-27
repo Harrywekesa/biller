@@ -47,8 +47,11 @@ class SmsReceiver : BroadcastReceiver() {
             val parsedResult = MpesaParser.parseMessage(fullMessage)
             if (parsedResult != null) {
                  // Launch WorkManager to process SMS reliably
+                val simId = intent.getIntExtra("subscription", -1)
+                
                 val workData = Data.Builder()
                     .putString("sms_body", fullMessage)
+                    .putInt("sim_id", simId)
                     .build()
                 
                 val workRequest = OneTimeWorkRequestBuilder<MpesaSmsWorker>()

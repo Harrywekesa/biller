@@ -14,6 +14,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import javax.inject.Singleton
 
 @Module
@@ -26,11 +28,18 @@ object DatabaseModule {
         @ApplicationContext context: Context,
         databaseProvider: javax.inject.Provider<AppDatabase>
     ): AppDatabase {
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE transactions ADD COLUMN simSubscriptionId INTEGER")
+            }
+        }
+
         return Room.databaseBuilder(
             context,
             AppDatabase::class.java,
             "mpesa_tracker_db"
         )
+        .addMigrations(MIGRATION_6_7)
         .fallbackToDestructiveMigration() // Useful during active MVP development
         .addCallback(AppDatabaseCallback(databaseProvider)) // Triggers initial data seeding
         .build()

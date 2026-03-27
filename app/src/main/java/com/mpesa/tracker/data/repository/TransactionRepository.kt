@@ -23,8 +23,12 @@ class TransactionRepository @Inject constructor(
     private val budgetDao: BudgetDao
 ) {
 
-    fun getAllTransactions(): Flow<List<TransactionEntity>> {
-        return transactionDao.getAllTransactions()
+    fun getAllTransactions(simId: Int? = null): Flow<List<TransactionEntity>> {
+        return transactionDao.getAllTransactions(simId)
+    }
+
+    fun getActiveSimIds(): Flow<List<Int>> {
+        return transactionDao.getActiveSimIds()
     }
 
     fun getAllCategories(): Flow<List<com.mpesa.tracker.data.local.entities.CategoryEntity>> {
@@ -57,7 +61,7 @@ class TransactionRepository @Inject constructor(
         budgetDao.deleteBudgetForCategory(categoryId)
     }
 
-    fun getTotalSpentForPeriod(period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null): Flow<Double?> {
+    fun getTotalSpentForPeriod(period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null, simId: Int? = null): Flow<Double?> {
         val (start, end) = getTimestampRangeForPeriod(period, customStart, customEnd)
         
         // Types that usually represent spending money
@@ -68,12 +72,12 @@ class TransactionRepository @Inject constructor(
             "WITHDRAW_CASH",
             "BUY_AIRTIME"
         )
-        return transactionDao.getTotalSpentBetween(start, end, spendingTypes)
+        return transactionDao.getTotalSpentBetween(start, end, spendingTypes, simId)
     }
 
-    fun getTotalIncomeForPeriod(period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null): Flow<Double?> {
+    fun getTotalIncomeForPeriod(period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null, simId: Int? = null): Flow<Double?> {
         val (start, end) = getTimestampRangeForPeriod(period, customStart, customEnd)
-        return transactionDao.getTotalIncomeBetween(start, end)
+        return transactionDao.getTotalIncomeBetween(start, end, simId)
     }
 
     suspend fun insertTransaction(transaction: TransactionEntity) {
@@ -193,24 +197,24 @@ class TransactionRepository @Inject constructor(
         return Pair(startTimestamp, endTimestamp)
     }
 
-    fun getExpensesByCategory(period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null): Flow<List<com.mpesa.tracker.data.local.entities.CategoryExpense>> {
+    fun getExpensesByCategory(period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null, simId: Int? = null): Flow<List<com.mpesa.tracker.data.local.entities.CategoryExpense>> {
         val (start, end) = getTimestampRangeForPeriod(period, customStart, customEnd)
-        return transactionDao.getExpensesByCategory(start, end)
+        return transactionDao.getExpensesByCategory(start, end, simId)
     }
 
-    fun getDailySpendingTrend(period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null): Flow<List<DailySpend>> {
+    fun getDailySpendingTrend(period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null, simId: Int? = null): Flow<List<DailySpend>> {
         val (start, end) = getTimestampRangeForPeriod(period, customStart, customEnd)
-        return transactionDao.getDailySpendingTrend(start, end)
+        return transactionDao.getDailySpendingTrend(start, end, simId)
     }
 
     /**
      * Replaced auto-detection with explicit categorization. 
      * Users assign bills to the "Subscriptions" category, and this function reads those merchants.
      */
-    fun getAutoDetectedSubscriptions(): Flow<List<com.mpesa.tracker.data.local.entities.SubscriptionEntity>> {
+    fun getAutoDetectedSubscriptions(simId: Int? = null): Flow<List<com.mpesa.tracker.data.local.entities.SubscriptionEntity>> {
         return kotlinx.coroutines.flow.combine(
             categoryDao.getAllCategories(),
-            transactionDao.getAllTransactions()
+            transactionDao.getAllTransactions(simId)
         ) { categories, allTxs ->
             
             val subCategory = categories.firstOrNull { it.name.equals("Subscriptions", ignoreCase = true) }

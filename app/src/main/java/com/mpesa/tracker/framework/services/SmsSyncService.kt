@@ -27,7 +27,7 @@ class SmsSyncService @Inject constructor(
             val inboxUri = Uri.parse("content://sms/inbox")
             val cursor = context.contentResolver.query(
                 inboxUri,
-                arrayOf("_id", "address", "body", "date"),
+                null, // Return all columns to avoid IllegalArgumentException if sub_id is missing on some OEMs
                 "address = ? OR address = ?",
                 arrayOf("MPESA", "M-PESA"),
                 "date ASC" // Older to newer to maintain correct balance history conceptually
@@ -36,10 +36,22 @@ class SmsSyncService @Inject constructor(
             cursor?.use {
                 val bodyIndex = it.getColumnIndex("body")
                 val dateIndex = it.getColumnIndex("date")
+                val subIdIndex = it.getColumnIndex(android.provider.Telephony.Sms.SUBSCRIPTION_ID)
                 
                 while (it.moveToNext()) {
                     val body = it.getString(bodyIndex) ?: ""
                     val smsDate = it.getLong(dateIndex)
+                    
+                    var simId: Int? = null
+                    if (subIdIndex != -1 && !it.isNull(subIdIndex)) {
+                        simId = it.getInt(subIdIndex)
+                    } else {
+                        // Fallback for some custom ROMs
+                        val simIdIndexAlt = it.getColumnIndex("sim_id")
+                        if (simIdIndexAlt != -1 && !it.isNull(simIdIndexAlt)) {
+                            simId = it.getInt(simIdIndexAlt)
+                        }
+                    }
                     
                     val parsedResult = MpesaParser.parseMessage(body, smsDate)
                     if (parsedResult != null) {
@@ -57,7 +69,8 @@ class SmsSyncService @Inject constructor(
                                 isIncome = parsedResult.type == TransactionType.RECEIVED_MONEY,
                                 fulizaAmount = parsedResult.fulizaAmount,
                                 fulizaFee = parsedResult.fulizaFee,
-                                rawSmsBody = parsedResult.rawSms
+                                rawSmsBody = parsedResult.rawSms,
+                                simSubscriptionId = simId
                             )
                             
                             val categoryId = categorizationEngine.categorize(transaction)

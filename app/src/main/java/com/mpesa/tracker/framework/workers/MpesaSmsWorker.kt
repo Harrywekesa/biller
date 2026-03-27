@@ -34,6 +34,9 @@ class MpesaSmsWorker @AssistedInject constructor(
         try {
             val parsedResult = MpesaParser.parseMessage(smsBody)
             if (parsedResult != null) {
+                val simId = inputData.getInt("sim_id", -1)
+                val finalSimId = if (simId != -1) simId else null
+                
                 var transaction = TransactionEntity(
                     receiptNumber = parsedResult.receiptNumber,
                     type = parsedResult.type,
@@ -47,7 +50,8 @@ class MpesaSmsWorker @AssistedInject constructor(
                     isIncome = parsedResult.type == TransactionType.RECEIVED_MONEY,
                     fulizaAmount = parsedResult.fulizaAmount,
                     fulizaFee = parsedResult.fulizaFee,
-                    rawSmsBody = parsedResult.rawSms
+                    rawSmsBody = parsedResult.rawSms,
+                    simSubscriptionId = finalSimId
                 )
                 
                 val categoryId = categorizationEngine.categorize(transaction)

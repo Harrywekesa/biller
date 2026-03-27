@@ -15,7 +15,7 @@ import com.mpesa.tracker.data.local.dao.BudgetDao
 
 @Database(
     entities = [TransactionEntity::class, CategoryEntity::class, SubscriptionEntity::class, CustomRuleEntity::class, BudgetEntity::class],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

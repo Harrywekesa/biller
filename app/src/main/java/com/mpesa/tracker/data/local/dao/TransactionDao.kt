@@ -23,20 +23,23 @@ interface TransactionDao {
     @Query("DELETE FROM transactions")
     suspend fun deleteAllTransactions()
 
-    @Query("SELECT * FROM transactions ORDER BY dateTimestamp DESC")
-    fun getAllTransactions(): Flow<List<TransactionEntity>>
+    @Query("SELECT DISTINCT simSubscriptionId FROM transactions WHERE simSubscriptionId IS NOT NULL ORDER BY simSubscriptionId ASC")
+    fun getActiveSimIds(): Flow<List<Int>>
 
-    @Query("SELECT * FROM transactions WHERE dateTimestamp BETWEEN :startDate AND :endDate ORDER BY dateTimestamp DESC")
-    fun getTransactionsBetween(startDate: Long, endDate: Long): Flow<List<TransactionEntity>>
+    @Query("SELECT * FROM transactions WHERE (:simId IS NULL OR simSubscriptionId = :simId) ORDER BY dateTimestamp DESC")
+    fun getAllTransactions(simId: Int? = null): Flow<List<TransactionEntity>>
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE type IN (:types) AND dateTimestamp BETWEEN :startDate AND :endDate")
-    fun getTotalSpentBetween(startDate: Long, endDate: Long, types: List<String>): Flow<Double?>
+    @Query("SELECT * FROM transactions WHERE dateTimestamp BETWEEN :startDate AND :endDate AND (:simId IS NULL OR simSubscriptionId = :simId) ORDER BY dateTimestamp DESC")
+    fun getTransactionsBetween(startDate: Long, endDate: Long, simId: Int? = null): Flow<List<TransactionEntity>>
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE type IN (:types) AND dateTimestamp BETWEEN :startDate AND :endDate AND (:simId IS NULL OR simSubscriptionId = :simId)")
+    fun getTotalSpentBetween(startDate: Long, endDate: Long, types: List<String>, simId: Int? = null): Flow<Double?>
     
-    @Query("SELECT SUM(transactionCost) FROM transactions WHERE dateTimestamp BETWEEN :startDate AND :endDate")
-    fun getTotalFeesBetween(startDate: Long, endDate: Long): Flow<Double?>
+    @Query("SELECT SUM(transactionCost) FROM transactions WHERE dateTimestamp BETWEEN :startDate AND :endDate AND (:simId IS NULL OR simSubscriptionId = :simId)")
+    fun getTotalFeesBetween(startDate: Long, endDate: Long, simId: Int? = null): Flow<Double?>
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE isIncome = 1 AND dateTimestamp BETWEEN :startDate AND :endDate")
-    fun getTotalIncomeBetween(startDate: Long, endDate: Long): Flow<Double?>
+    @Query("SELECT SUM(amount) FROM transactions WHERE isIncome = 1 AND dateTimestamp BETWEEN :startDate AND :endDate AND (:simId IS NULL OR simSubscriptionId = :simId)")
+    fun getTotalIncomeBetween(startDate: Long, endDate: Long, simId: Int? = null): Flow<Double?>
 
     @Query("SELECT * FROM transactions WHERE receiptNumber = :receiptNumber LIMIT 1")
     suspend fun getTransactionByReceipt(receiptNumber: String): TransactionEntity?
@@ -53,10 +56,11 @@ interface TransactionDao {
         LEFT JOIN budgets b ON c.id = b.categoryId
         WHERE t.dateTimestamp BETWEEN :startDate AND :endDate
         AND t.isIncome = 0
+        AND (:simId IS NULL OR t.simSubscriptionId = :simId)
         GROUP BY c.id
         ORDER BY totalAmount DESC
     """)
-    fun getExpensesByCategory(startDate: Long, endDate: Long): Flow<List<CategoryExpense>>
+    fun getExpensesByCategory(startDate: Long, endDate: Long, simId: Int? = null): Flow<List<CategoryExpense>>
 
     @Query("""
         SELECT 
@@ -65,8 +69,9 @@ interface TransactionDao {
         FROM transactions
         WHERE dateTimestamp BETWEEN :startDate AND :endDate
         AND isIncome = 0
+        AND (:simId IS NULL OR simSubscriptionId = :simId)
         GROUP BY dateString
         ORDER BY dateString ASC
     """)
-    fun getDailySpendingTrend(startDate: Long, endDate: Long): Flow<List<DailySpend>>
+    fun getDailySpendingTrend(startDate: Long, endDate: Long, simId: Int? = null): Flow<List<DailySpend>>
 }

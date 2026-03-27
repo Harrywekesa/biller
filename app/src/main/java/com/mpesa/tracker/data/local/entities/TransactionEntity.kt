@@ -19,5 +19,6 @@ data class TransactionEntity(
     val isIncome: Boolean, // True if RECEIVED_MONEY, False otherwise
     val fulizaAmount: Double? = null, // Extracted Fuliza loan amount if utilized
     val fulizaFee: Double? = null, // Extracted Fuliza dynamic fee
-    val rawSmsBody: String // Useful for debugging parsing failures 
+    val rawSmsBody: String, // Useful for debugging parsing failures 
+    val simSubscriptionId: Int? = null // Safaricom Line 1 or Line 2 tracking
 )

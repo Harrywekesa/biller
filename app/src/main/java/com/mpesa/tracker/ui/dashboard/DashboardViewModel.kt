@@ -10,8 +10,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.text.NumberFormat
 import java.util.Locale
 import javax.inject.Inject
@@ -35,19 +38,36 @@ class DashboardViewModel @Inject constructor(
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
+    private val _selectedSimId = MutableStateFlow<Int?>(null)
+    val selectedSimId: StateFlow<Int?> = _selectedSimId.asStateFlow()
+
     private val currencyFormatter = NumberFormat.getNumberInstance(Locale.US).apply {
         minimumFractionDigits = 2
         maximumFractionDigits = 2
     }
 
-    val recentTransactions: StateFlow<List<TransactionEntity>> = repository.getAllTransactions()
+    val recentTransactions: StateFlow<List<TransactionEntity>> = _selectedSimId
+        .flatMapLatest { simId ->
+            repository.getAllTransactions(simId = simId)
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    val monthSpend: StateFlow<String> = repository.getTotalSpentForPeriod(ReportPeriod.THIS_MONTH)
+    val activeSimIds: StateFlow<List<Int>> = repository.getActiveSimIds()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val monthSpend: StateFlow<String> = _selectedSimId
+        .flatMapLatest { simId ->
+            repository.getTotalSpentForPeriod(ReportPeriod.THIS_MONTH, simId = simId)
+        }
         .map { total ->
             total?.let { currencyFormatter.format(it) } ?: "0.00"
         }
@@ -57,7 +77,11 @@ class DashboardViewModel @Inject constructor(
             initialValue = "0.00"
         )
         
-    val monthIncome: StateFlow<String> = repository.getTotalIncomeForPeriod(ReportPeriod.THIS_MONTH)
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val monthIncome: StateFlow<String> = _selectedSimId
+        .flatMapLatest { simId ->
+            repository.getTotalIncomeForPeriod(ReportPeriod.THIS_MONTH, simId = simId)
+        }
         .map { total ->
             total?.let { currencyFormatter.format(it) } ?: "0.00"
         }
@@ -67,7 +91,11 @@ class DashboardViewModel @Inject constructor(
             initialValue = "0.00"
         )
         
-    val totalBalance: StateFlow<String> = repository.getAllTransactions()
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val totalBalance: StateFlow<String> = _selectedSimId
+        .flatMapLatest { simId ->
+            repository.getAllTransactions(simId = simId)
+        }
         .map { transactions ->
             val latestTxWithBalance = transactions.firstOrNull { it.balance != null }
             
@@ -104,6 +132,27 @@ class DashboardViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = "0.00"
         )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val totalTransacted: StateFlow<String> = _selectedSimId
+        .flatMapLatest { simId ->
+            combine(
+                repository.getTotalSpentForPeriod(ReportPeriod.THIS_MONTH, simId = simId),
+                repository.getTotalIncomeForPeriod(ReportPeriod.THIS_MONTH, simId = simId)
+            ) { spend, income ->
+                val total = (spend ?: 0.0) + (income ?: 0.0)
+                currencyFormatter.format(total)
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = "0.00"
+        )
+
+    fun setSimFilter(simId: Int?) {
+        _selectedSimId.value = simId
+    }
 
     fun syncHistoricSms() {
         if (_isSyncing.value) return // Prevent multiple concurrent syncs

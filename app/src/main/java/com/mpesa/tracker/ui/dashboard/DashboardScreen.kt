@@ -38,6 +38,9 @@ fun DashboardScreen(
     val totalBalance by viewModel.totalBalance.collectAsState()
     val monthSpend by viewModel.monthSpend.collectAsState()
     val monthIncome by viewModel.monthIncome.collectAsState()
+    val totalTransacted by viewModel.totalTransacted.collectAsState()
+    val selectedSimId by viewModel.selectedSimId.collectAsState()
+    val activeSimIds by viewModel.activeSimIds.collectAsState()
     val recentTransactions by viewModel.recentTransactions.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
 
@@ -74,10 +77,40 @@ fun DashboardScreen(
                 .padding(horizontal = 16.dp)
         ) {
             
+            // SIM Selection Filter
+            if (activeSimIds.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = selectedSimId == null,
+                        onClick = { viewModel.setSimFilter(null) },
+                        label = { Text("All Lines") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
+                            selectedLabelColor = PrimaryGreen
+                        )
+                    )
+                    activeSimIds.forEachIndexed { index, simId ->
+                        FilterChip(
+                            selected = selectedSimId == simId,
+                            onClick = { viewModel.setSimFilter(simId) },
+                            label = { Text("SIM ${index + 1}") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
+                                selectedLabelColor = PrimaryGreen
+                            )
+                        )
+                    }
+                }
+            }
+
             BalanceCard(
             balance = if (isBalanceVisible) "Ksh $totalBalance" else "Ksh ****",
             monthSpend = if (isBalanceVisible) "Ksh $monthSpend" else "Ksh ****",
             monthIncome = if (isBalanceVisible) "Ksh $monthIncome" else "Ksh ****",
+            totalTransacted = if (isBalanceVisible) "Ksh $totalTransacted" else "Ksh ****",
             isBalanceVisible = isBalanceVisible,
             onToggleVisibility = { isBalanceVisible = !isBalanceVisible },
             onNavigateToTransactions = onNavigateToTransactions
@@ -131,6 +164,7 @@ fun BalanceCard(
     balance: String, 
     monthSpend: String, 
     monthIncome: String,
+    totalTransacted: String,
     isBalanceVisible: Boolean, 
     onToggleVisibility: () -> Unit,
     onNavigateToTransactions: (incomeOnly: Boolean) -> Unit
@@ -157,11 +191,13 @@ fun BalanceCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Total M-Pesa Balance",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 14.sp
-                    )
+                    Column {
+                        Text(
+                            text = "Total M-Pesa Balance",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 14.sp
+                        )
+                    }
                     IconButton(onClick = onToggleVisibility) {
                         Icon(
                             imageVector = if (isBalanceVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
@@ -176,8 +212,24 @@ fun BalanceCard(
                     color = Color.White,
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                 )
+                
+                Text(
+                    text = "Total Transacted This Month",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = totalTransacted,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                Divider(color = Color.White.copy(alpha = 0.2f))
+
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
