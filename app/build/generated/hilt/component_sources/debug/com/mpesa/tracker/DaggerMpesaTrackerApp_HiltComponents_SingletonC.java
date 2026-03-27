@@ -430,22 +430,22 @@ public final class DaggerMpesaTrackerApp_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_mpesa_tracker_ui_analytics_AnalyticsViewModel = "com.mpesa.tracker.ui.analytics.AnalyticsViewModel";
+      static String com_mpesa_tracker_ui_subscriptions_SubscriptionsViewModel = "com.mpesa.tracker.ui.subscriptions.SubscriptionsViewModel";
 
       static String com_mpesa_tracker_ui_dashboard_DashboardViewModel = "com.mpesa.tracker.ui.dashboard.DashboardViewModel";
 
-      static String com_mpesa_tracker_ui_subscriptions_SubscriptionsViewModel = "com.mpesa.tracker.ui.subscriptions.SubscriptionsViewModel";
+      static String com_mpesa_tracker_ui_analytics_AnalyticsViewModel = "com.mpesa.tracker.ui.analytics.AnalyticsViewModel";
 
       static String com_mpesa_tracker_ui_transactions_TransactionsViewModel = "com.mpesa.tracker.ui.transactions.TransactionsViewModel";
 
       @KeepFieldType
-      AnalyticsViewModel com_mpesa_tracker_ui_analytics_AnalyticsViewModel2;
+      SubscriptionsViewModel com_mpesa_tracker_ui_subscriptions_SubscriptionsViewModel2;
 
       @KeepFieldType
       DashboardViewModel com_mpesa_tracker_ui_dashboard_DashboardViewModel2;
 
       @KeepFieldType
-      SubscriptionsViewModel com_mpesa_tracker_ui_subscriptions_SubscriptionsViewModel2;
+      AnalyticsViewModel com_mpesa_tracker_ui_analytics_AnalyticsViewModel2;
 
       @KeepFieldType
       TransactionsViewModel com_mpesa_tracker_ui_transactions_TransactionsViewModel2;
@@ -498,13 +498,16 @@ public final class DaggerMpesaTrackerApp_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
+      static String com_mpesa_tracker_ui_dashboard_DashboardViewModel = "com.mpesa.tracker.ui.dashboard.DashboardViewModel";
+
       static String com_mpesa_tracker_ui_subscriptions_SubscriptionsViewModel = "com.mpesa.tracker.ui.subscriptions.SubscriptionsViewModel";
 
       static String com_mpesa_tracker_ui_transactions_TransactionsViewModel = "com.mpesa.tracker.ui.transactions.TransactionsViewModel";
 
       static String com_mpesa_tracker_ui_analytics_AnalyticsViewModel = "com.mpesa.tracker.ui.analytics.AnalyticsViewModel";
 
-      static String com_mpesa_tracker_ui_dashboard_DashboardViewModel = "com.mpesa.tracker.ui.dashboard.DashboardViewModel";
+      @KeepFieldType
+      DashboardViewModel com_mpesa_tracker_ui_dashboard_DashboardViewModel2;
 
       @KeepFieldType
       SubscriptionsViewModel com_mpesa_tracker_ui_subscriptions_SubscriptionsViewModel2;
@@ -514,9 +517,6 @@ public final class DaggerMpesaTrackerApp_HiltComponents_SingletonC {
 
       @KeepFieldType
       AnalyticsViewModel com_mpesa_tracker_ui_analytics_AnalyticsViewModel2;
-
-      @KeepFieldType
-      DashboardViewModel com_mpesa_tracker_ui_dashboard_DashboardViewModel2;
     }
 
     private static final class SwitchingProvider<T> implements Provider<T> {

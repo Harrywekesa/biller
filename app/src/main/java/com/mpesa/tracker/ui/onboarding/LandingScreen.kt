@@ -113,9 +113,18 @@ fun LandingScreen(
                         icon = Icons.Filled.Analytics,
                         modifier = Modifier.weight(1f),
                         onClick = onNavigateToAnalytics
-                    )
                 }
             }
+            
+            Spacer(modifier = Modifier.weight(1f))
+            
+            Text(
+                text = "Developed by pipis",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = PrimaryGreen.copy(alpha = 0.6f),
+                modifier = Modifier.padding(top = 16.dp)
+            )
         }
     }
 }

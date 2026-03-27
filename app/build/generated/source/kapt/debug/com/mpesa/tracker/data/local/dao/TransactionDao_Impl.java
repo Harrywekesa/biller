@@ -56,7 +56,7 @@ public final class TransactionDao_Impl implements TransactionDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR IGNORE INTO `transactions` (`receiptNumber`,`type`,`amount`,`transactionCost`,`dateTimestamp`,`recipientName`,`recipientNumber`,`balance`,`categoryId`,`isRecurring`,`isIncome`,`fulizaAmount`,`fulizaFee`,`rawSmsBody`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR IGNORE INTO `transactions` (`receiptNumber`,`type`,`amount`,`transactionCost`,`dateTimestamp`,`recipientName`,`recipientNumber`,`balance`,`categoryId`,`isRecurring`,`isIncome`,`fulizaAmount`,`fulizaFee`,`rawSmsBody`,`simSubscriptionId`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -109,6 +109,11 @@ public final class TransactionDao_Impl implements TransactionDao {
           statement.bindNull(14);
         } else {
           statement.bindString(14, entity.getRawSmsBody());
+        }
+        if (entity.getSimSubscriptionId() == null) {
+          statement.bindNull(15);
+        } else {
+          statement.bindLong(15, entity.getSimSubscriptionId());
         }
       }
     };
@@ -116,7 +121,7 @@ public final class TransactionDao_Impl implements TransactionDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "UPDATE OR ABORT `transactions` SET `receiptNumber` = ?,`type` = ?,`amount` = ?,`transactionCost` = ?,`dateTimestamp` = ?,`recipientName` = ?,`recipientNumber` = ?,`balance` = ?,`categoryId` = ?,`isRecurring` = ?,`isIncome` = ?,`fulizaAmount` = ?,`fulizaFee` = ?,`rawSmsBody` = ? WHERE `receiptNumber` = ?";
+        return "UPDATE OR ABORT `transactions` SET `receiptNumber` = ?,`type` = ?,`amount` = ?,`transactionCost` = ?,`dateTimestamp` = ?,`recipientName` = ?,`recipientNumber` = ?,`balance` = ?,`categoryId` = ?,`isRecurring` = ?,`isIncome` = ?,`fulizaAmount` = ?,`fulizaFee` = ?,`rawSmsBody` = ?,`simSubscriptionId` = ? WHERE `receiptNumber` = ?";
       }
 
       @Override
@@ -170,10 +175,15 @@ public final class TransactionDao_Impl implements TransactionDao {
         } else {
           statement.bindString(14, entity.getRawSmsBody());
         }
-        if (entity.getReceiptNumber() == null) {
+        if (entity.getSimSubscriptionId() == null) {
           statement.bindNull(15);
         } else {
-          statement.bindString(15, entity.getReceiptNumber());
+          statement.bindLong(15, entity.getSimSubscriptionId());
+        }
+        if (entity.getReceiptNumber() == null) {
+          statement.bindNull(16);
+        } else {
+          statement.bindString(16, entity.getReceiptNumber());
         }
       }
     };
@@ -289,9 +299,54 @@ public final class TransactionDao_Impl implements TransactionDao {
   }
 
   @Override
-  public Flow<List<TransactionEntity>> getAllTransactions() {
-    final String _sql = "SELECT * FROM transactions ORDER BY dateTimestamp DESC";
+  public Flow<List<Integer>> getActiveSimIds() {
+    final String _sql = "SELECT DISTINCT simSubscriptionId FROM transactions WHERE simSubscriptionId IS NOT NULL ORDER BY simSubscriptionId ASC";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"transactions"}, new Callable<List<Integer>>() {
+      @Override
+      @NonNull
+      public List<Integer> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final List<Integer> _result = new ArrayList<Integer>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final Integer _item;
+            if (_cursor.isNull(0)) {
+              _item = null;
+            } else {
+              _item = _cursor.getInt(0);
+            }
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
+  @Override
+  public Flow<List<TransactionEntity>> getAllTransactions(final Integer simId) {
+    final String _sql = "SELECT * FROM transactions WHERE (? IS NULL OR simSubscriptionId = ?) ORDER BY dateTimestamp DESC";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
+    int _argIndex = 1;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
+    _argIndex = 2;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
     return CoroutinesRoom.createFlow(__db, false, new String[] {"transactions"}, new Callable<List<TransactionEntity>>() {
       @Override
       @NonNull
@@ -312,6 +367,7 @@ public final class TransactionDao_Impl implements TransactionDao {
           final int _cursorIndexOfFulizaAmount = CursorUtil.getColumnIndexOrThrow(_cursor, "fulizaAmount");
           final int _cursorIndexOfFulizaFee = CursorUtil.getColumnIndexOrThrow(_cursor, "fulizaFee");
           final int _cursorIndexOfRawSmsBody = CursorUtil.getColumnIndexOrThrow(_cursor, "rawSmsBody");
+          final int _cursorIndexOfSimSubscriptionId = CursorUtil.getColumnIndexOrThrow(_cursor, "simSubscriptionId");
           final List<TransactionEntity> _result = new ArrayList<TransactionEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final TransactionEntity _item;
@@ -379,7 +435,13 @@ public final class TransactionDao_Impl implements TransactionDao {
             } else {
               _tmpRawSmsBody = _cursor.getString(_cursorIndexOfRawSmsBody);
             }
-            _item = new TransactionEntity(_tmpReceiptNumber,_tmpType,_tmpAmount,_tmpTransactionCost,_tmpDateTimestamp,_tmpRecipientName,_tmpRecipientNumber,_tmpBalance,_tmpCategoryId,_tmpIsRecurring,_tmpIsIncome,_tmpFulizaAmount,_tmpFulizaFee,_tmpRawSmsBody);
+            final Integer _tmpSimSubscriptionId;
+            if (_cursor.isNull(_cursorIndexOfSimSubscriptionId)) {
+              _tmpSimSubscriptionId = null;
+            } else {
+              _tmpSimSubscriptionId = _cursor.getInt(_cursorIndexOfSimSubscriptionId);
+            }
+            _item = new TransactionEntity(_tmpReceiptNumber,_tmpType,_tmpAmount,_tmpTransactionCost,_tmpDateTimestamp,_tmpRecipientName,_tmpRecipientNumber,_tmpBalance,_tmpCategoryId,_tmpIsRecurring,_tmpIsIncome,_tmpFulizaAmount,_tmpFulizaFee,_tmpRawSmsBody,_tmpSimSubscriptionId);
             _result.add(_item);
           }
           return _result;
@@ -397,13 +459,25 @@ public final class TransactionDao_Impl implements TransactionDao {
 
   @Override
   public Flow<List<TransactionEntity>> getTransactionsBetween(final long startDate,
-      final long endDate) {
-    final String _sql = "SELECT * FROM transactions WHERE dateTimestamp BETWEEN ? AND ? ORDER BY dateTimestamp DESC";
-    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
+      final long endDate, final Integer simId) {
+    final String _sql = "SELECT * FROM transactions WHERE dateTimestamp BETWEEN ? AND ? AND (? IS NULL OR simSubscriptionId = ?) ORDER BY dateTimestamp DESC";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 4);
     int _argIndex = 1;
     _statement.bindLong(_argIndex, startDate);
     _argIndex = 2;
     _statement.bindLong(_argIndex, endDate);
+    _argIndex = 3;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
+    _argIndex = 4;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
     return CoroutinesRoom.createFlow(__db, false, new String[] {"transactions"}, new Callable<List<TransactionEntity>>() {
       @Override
       @NonNull
@@ -424,6 +498,7 @@ public final class TransactionDao_Impl implements TransactionDao {
           final int _cursorIndexOfFulizaAmount = CursorUtil.getColumnIndexOrThrow(_cursor, "fulizaAmount");
           final int _cursorIndexOfFulizaFee = CursorUtil.getColumnIndexOrThrow(_cursor, "fulizaFee");
           final int _cursorIndexOfRawSmsBody = CursorUtil.getColumnIndexOrThrow(_cursor, "rawSmsBody");
+          final int _cursorIndexOfSimSubscriptionId = CursorUtil.getColumnIndexOrThrow(_cursor, "simSubscriptionId");
           final List<TransactionEntity> _result = new ArrayList<TransactionEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final TransactionEntity _item;
@@ -491,7 +566,13 @@ public final class TransactionDao_Impl implements TransactionDao {
             } else {
               _tmpRawSmsBody = _cursor.getString(_cursorIndexOfRawSmsBody);
             }
-            _item = new TransactionEntity(_tmpReceiptNumber,_tmpType,_tmpAmount,_tmpTransactionCost,_tmpDateTimestamp,_tmpRecipientName,_tmpRecipientNumber,_tmpBalance,_tmpCategoryId,_tmpIsRecurring,_tmpIsIncome,_tmpFulizaAmount,_tmpFulizaFee,_tmpRawSmsBody);
+            final Integer _tmpSimSubscriptionId;
+            if (_cursor.isNull(_cursorIndexOfSimSubscriptionId)) {
+              _tmpSimSubscriptionId = null;
+            } else {
+              _tmpSimSubscriptionId = _cursor.getInt(_cursorIndexOfSimSubscriptionId);
+            }
+            _item = new TransactionEntity(_tmpReceiptNumber,_tmpType,_tmpAmount,_tmpTransactionCost,_tmpDateTimestamp,_tmpRecipientName,_tmpRecipientNumber,_tmpBalance,_tmpCategoryId,_tmpIsRecurring,_tmpIsIncome,_tmpFulizaAmount,_tmpFulizaFee,_tmpRawSmsBody,_tmpSimSubscriptionId);
             _result.add(_item);
           }
           return _result;
@@ -509,7 +590,7 @@ public final class TransactionDao_Impl implements TransactionDao {
 
   @Override
   public Flow<Double> getTotalSpentBetween(final long startDate, final long endDate,
-      final List<String> types) {
+      final List<String> types, final Integer simId) {
     final StringBuilder _stringBuilder = StringUtil.newStringBuilder();
     _stringBuilder.append("SELECT SUM(amount) FROM transactions WHERE type IN (");
     final int _inputSize = types.size();
@@ -518,8 +599,13 @@ public final class TransactionDao_Impl implements TransactionDao {
     _stringBuilder.append("?");
     _stringBuilder.append(" AND ");
     _stringBuilder.append("?");
+    _stringBuilder.append(" AND (");
+    _stringBuilder.append("?");
+    _stringBuilder.append(" IS NULL OR simSubscriptionId = ");
+    _stringBuilder.append("?");
+    _stringBuilder.append(")");
     final String _sql = _stringBuilder.toString();
-    final int _argCount = 2 + _inputSize;
+    final int _argCount = 4 + _inputSize;
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, _argCount);
     int _argIndex = 1;
     for (String _item : types) {
@@ -534,6 +620,18 @@ public final class TransactionDao_Impl implements TransactionDao {
     _statement.bindLong(_argIndex, startDate);
     _argIndex = 2 + _inputSize;
     _statement.bindLong(_argIndex, endDate);
+    _argIndex = 3 + _inputSize;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
+    _argIndex = 4 + _inputSize;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
     return CoroutinesRoom.createFlow(__db, false, new String[] {"transactions"}, new Callable<Double>() {
       @Override
       @Nullable
@@ -566,13 +664,26 @@ public final class TransactionDao_Impl implements TransactionDao {
   }
 
   @Override
-  public Flow<Double> getTotalFeesBetween(final long startDate, final long endDate) {
-    final String _sql = "SELECT SUM(transactionCost) FROM transactions WHERE dateTimestamp BETWEEN ? AND ?";
-    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
+  public Flow<Double> getTotalFeesBetween(final long startDate, final long endDate,
+      final Integer simId) {
+    final String _sql = "SELECT SUM(transactionCost) FROM transactions WHERE dateTimestamp BETWEEN ? AND ? AND (? IS NULL OR simSubscriptionId = ?)";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 4);
     int _argIndex = 1;
     _statement.bindLong(_argIndex, startDate);
     _argIndex = 2;
     _statement.bindLong(_argIndex, endDate);
+    _argIndex = 3;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
+    _argIndex = 4;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
     return CoroutinesRoom.createFlow(__db, false, new String[] {"transactions"}, new Callable<Double>() {
       @Override
       @Nullable
@@ -605,13 +716,26 @@ public final class TransactionDao_Impl implements TransactionDao {
   }
 
   @Override
-  public Flow<Double> getTotalIncomeBetween(final long startDate, final long endDate) {
-    final String _sql = "SELECT SUM(amount) FROM transactions WHERE isIncome = 1 AND dateTimestamp BETWEEN ? AND ?";
-    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
+  public Flow<Double> getTotalIncomeBetween(final long startDate, final long endDate,
+      final Integer simId) {
+    final String _sql = "SELECT SUM(amount) FROM transactions WHERE isIncome = 1 AND dateTimestamp BETWEEN ? AND ? AND (? IS NULL OR simSubscriptionId = ?)";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 4);
     int _argIndex = 1;
     _statement.bindLong(_argIndex, startDate);
     _argIndex = 2;
     _statement.bindLong(_argIndex, endDate);
+    _argIndex = 3;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
+    _argIndex = 4;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
     return CoroutinesRoom.createFlow(__db, false, new String[] {"transactions"}, new Callable<Double>() {
       @Override
       @Nullable
@@ -675,6 +799,7 @@ public final class TransactionDao_Impl implements TransactionDao {
           final int _cursorIndexOfFulizaAmount = CursorUtil.getColumnIndexOrThrow(_cursor, "fulizaAmount");
           final int _cursorIndexOfFulizaFee = CursorUtil.getColumnIndexOrThrow(_cursor, "fulizaFee");
           final int _cursorIndexOfRawSmsBody = CursorUtil.getColumnIndexOrThrow(_cursor, "rawSmsBody");
+          final int _cursorIndexOfSimSubscriptionId = CursorUtil.getColumnIndexOrThrow(_cursor, "simSubscriptionId");
           final TransactionEntity _result;
           if (_cursor.moveToFirst()) {
             final String _tmpReceiptNumber;
@@ -741,7 +866,13 @@ public final class TransactionDao_Impl implements TransactionDao {
             } else {
               _tmpRawSmsBody = _cursor.getString(_cursorIndexOfRawSmsBody);
             }
-            _result = new TransactionEntity(_tmpReceiptNumber,_tmpType,_tmpAmount,_tmpTransactionCost,_tmpDateTimestamp,_tmpRecipientName,_tmpRecipientNumber,_tmpBalance,_tmpCategoryId,_tmpIsRecurring,_tmpIsIncome,_tmpFulizaAmount,_tmpFulizaFee,_tmpRawSmsBody);
+            final Integer _tmpSimSubscriptionId;
+            if (_cursor.isNull(_cursorIndexOfSimSubscriptionId)) {
+              _tmpSimSubscriptionId = null;
+            } else {
+              _tmpSimSubscriptionId = _cursor.getInt(_cursorIndexOfSimSubscriptionId);
+            }
+            _result = new TransactionEntity(_tmpReceiptNumber,_tmpType,_tmpAmount,_tmpTransactionCost,_tmpDateTimestamp,_tmpRecipientName,_tmpRecipientNumber,_tmpBalance,_tmpCategoryId,_tmpIsRecurring,_tmpIsIncome,_tmpFulizaAmount,_tmpFulizaFee,_tmpRawSmsBody,_tmpSimSubscriptionId);
           } else {
             _result = null;
           }
@@ -755,8 +886,8 @@ public final class TransactionDao_Impl implements TransactionDao {
   }
 
   @Override
-  public Flow<List<CategoryExpense>> getExpensesByCategory(final long startDate,
-      final long endDate) {
+  public Flow<List<CategoryExpense>> getExpensesByCategory(final long startDate, final long endDate,
+      final Integer simId) {
     final String _sql = "\n"
             + "        SELECT \n"
             + "            c.id as categoryId,\n"
@@ -769,14 +900,27 @@ public final class TransactionDao_Impl implements TransactionDao {
             + "        LEFT JOIN budgets b ON c.id = b.categoryId\n"
             + "        WHERE t.dateTimestamp BETWEEN ? AND ?\n"
             + "        AND t.isIncome = 0\n"
+            + "        AND (? IS NULL OR t.simSubscriptionId = ?)\n"
             + "        GROUP BY c.id\n"
             + "        ORDER BY totalAmount DESC\n"
             + "    ";
-    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 4);
     int _argIndex = 1;
     _statement.bindLong(_argIndex, startDate);
     _argIndex = 2;
     _statement.bindLong(_argIndex, endDate);
+    _argIndex = 3;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
+    _argIndex = 4;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
     return CoroutinesRoom.createFlow(__db, false, new String[] {"transactions", "categories",
         "budgets"}, new Callable<List<CategoryExpense>>() {
       @Override
@@ -835,7 +979,8 @@ public final class TransactionDao_Impl implements TransactionDao {
   }
 
   @Override
-  public Flow<List<DailySpend>> getDailySpendingTrend(final long startDate, final long endDate) {
+  public Flow<List<DailySpend>> getDailySpendingTrend(final long startDate, final long endDate,
+      final Integer simId) {
     final String _sql = "\n"
             + "        SELECT \n"
             + "            strftime('%Y-%m-%d', dateTimestamp / 1000, 'unixepoch', 'localtime') as dateString,\n"
@@ -843,14 +988,27 @@ public final class TransactionDao_Impl implements TransactionDao {
             + "        FROM transactions\n"
             + "        WHERE dateTimestamp BETWEEN ? AND ?\n"
             + "        AND isIncome = 0\n"
+            + "        AND (? IS NULL OR simSubscriptionId = ?)\n"
             + "        GROUP BY dateString\n"
             + "        ORDER BY dateString ASC\n"
             + "    ";
-    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 4);
     int _argIndex = 1;
     _statement.bindLong(_argIndex, startDate);
     _argIndex = 2;
     _statement.bindLong(_argIndex, endDate);
+    _argIndex = 3;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
+    _argIndex = 4;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
     return CoroutinesRoom.createFlow(__db, false, new String[] {"transactions"}, new Callable<List<DailySpend>>() {
       @Override
       @NonNull

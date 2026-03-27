@@ -50,17 +50,17 @@ public final class AppDatabase_Impl extends AppDatabase {
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(6) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(7) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS `transactions` (`receiptNumber` TEXT NOT NULL, `type` TEXT NOT NULL, `amount` REAL NOT NULL, `transactionCost` REAL NOT NULL, `dateTimestamp` INTEGER NOT NULL, `recipientName` TEXT NOT NULL, `recipientNumber` TEXT, `balance` REAL, `categoryId` INTEGER, `isRecurring` INTEGER NOT NULL, `isIncome` INTEGER NOT NULL, `fulizaAmount` REAL, `fulizaFee` REAL, `rawSmsBody` TEXT NOT NULL, PRIMARY KEY(`receiptNumber`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `transactions` (`receiptNumber` TEXT NOT NULL, `type` TEXT NOT NULL, `amount` REAL NOT NULL, `transactionCost` REAL NOT NULL, `dateTimestamp` INTEGER NOT NULL, `recipientName` TEXT NOT NULL, `recipientNumber` TEXT, `balance` REAL, `categoryId` INTEGER, `isRecurring` INTEGER NOT NULL, `isIncome` INTEGER NOT NULL, `fulizaAmount` REAL, `fulizaFee` REAL, `rawSmsBody` TEXT NOT NULL, `simSubscriptionId` INTEGER, PRIMARY KEY(`receiptNumber`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `categories` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `colorCode` TEXT NOT NULL, `iconName` TEXT NOT NULL)");
         db.execSQL("CREATE TABLE IF NOT EXISTS `subscriptions` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `merchantNameMatcher` TEXT NOT NULL, `amount` REAL NOT NULL, `isActive` INTEGER NOT NULL, `billingCycleDays` INTEGER NOT NULL, `categoryId` INTEGER, `expectedNextPaymentDate` INTEGER)");
         db.execSQL("CREATE TABLE IF NOT EXISTS `custom_rules` (`merchantName` TEXT NOT NULL, `categoryId` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`merchantName`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `budgets` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `categoryId` INTEGER NOT NULL, `monthlyLimit` REAL NOT NULL, FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )");
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_budgets_categoryId` ON `budgets` (`categoryId`)");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a64ae217095ecf83d2a2d30a3c83c352')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c3f40c415e303de64943c19ea243da36')");
       }
 
       @Override
@@ -114,7 +114,7 @@ public final class AppDatabase_Impl extends AppDatabase {
       @NonNull
       public RoomOpenHelper.ValidationResult onValidateSchema(
           @NonNull final SupportSQLiteDatabase db) {
-        final HashMap<String, TableInfo.Column> _columnsTransactions = new HashMap<String, TableInfo.Column>(14);
+        final HashMap<String, TableInfo.Column> _columnsTransactions = new HashMap<String, TableInfo.Column>(15);
         _columnsTransactions.put("receiptNumber", new TableInfo.Column("receiptNumber", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsTransactions.put("type", new TableInfo.Column("type", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsTransactions.put("amount", new TableInfo.Column("amount", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -129,6 +129,7 @@ public final class AppDatabase_Impl extends AppDatabase {
         _columnsTransactions.put("fulizaAmount", new TableInfo.Column("fulizaAmount", "REAL", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsTransactions.put("fulizaFee", new TableInfo.Column("fulizaFee", "REAL", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsTransactions.put("rawSmsBody", new TableInfo.Column("rawSmsBody", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsTransactions.put("simSubscriptionId", new TableInfo.Column("simSubscriptionId", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysTransactions = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesTransactions = new HashSet<TableInfo.Index>(0);
         final TableInfo _infoTransactions = new TableInfo("transactions", _columnsTransactions, _foreignKeysTransactions, _indicesTransactions);
@@ -200,7 +201,7 @@ public final class AppDatabase_Impl extends AppDatabase {
         }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "a64ae217095ecf83d2a2d30a3c83c352", "d88491e4f1bfa3250d827381c1f1693b");
+    }, "c3f40c415e303de64943c19ea243da36", "a705afafee4ba002bca12790756de238");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;
