@@ -91,40 +91,52 @@ class DashboardViewModel @Inject constructor(
             initialValue = "0.00"
         )
         
+    private fun calculateTrueBalance(transactions: List<TransactionEntity>): Double {
+        val latestTxWithBalance = transactions.firstOrNull { it.balance != null }
+        if (latestTxWithBalance != null) {
+            // If the most recent transaction was a standalone Fuliza query/update, 
+            // the "balance" parsed in it is the outstanding Fuliza debt.
+            if (latestTxWithBalance.recipientName == "Fuliza M-PESA" && latestTxWithBalance.balance != null) {
+                return -(latestTxWithBalance.balance)
+            } 
+            // If M-Pesa balance is 0.00, they might have an outstanding Fuliza debt
+            else if (latestTxWithBalance.balance == 0.0) {
+                // Find the most recent standalone Fuliza message to capture the true debt
+                val recentFuliza = transactions.firstOrNull { it.recipientName == "Fuliza M-PESA" && it.balance != null }
+                
+                if (recentFuliza != null && recentFuliza.balance != null && recentFuliza.balance > 0) {
+                    return -(recentFuliza.balance)
+                } 
+                else if (latestTxWithBalance.fulizaAmount != null) {
+                    return -(latestTxWithBalance.fulizaAmount)
+                } 
+                else {
+                    return 0.0
+                }
+            }  
+            else {
+                return latestTxWithBalance.balance ?: 0.0
+            }
+        } else {
+            return 0.0
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val totalBalance: StateFlow<String> = _selectedSimId
         .flatMapLatest { simId ->
             repository.getAllTransactions(simId = simId)
         }
         .map { transactions ->
-            val latestTxWithBalance = transactions.firstOrNull { it.balance != null }
+            // Safely partition transactions by SIM so 'All Lines' cumulatively sums both independent M-Pesa balances!
+            val totalRawBalance = transactions.groupBy { it.simSubscriptionId }
+                .values
+                .sumOf { simTxs -> calculateTrueBalance(simTxs) }
             
-            if (latestTxWithBalance != null) {
-                // If the most recent transaction was a standalone Fuliza query/update, 
-                // the "balance" parsed in it is the outstanding Fuliza debt.
-                if (latestTxWithBalance.recipientName == "Fuliza M-PESA" && latestTxWithBalance.balance != null) {
-                    "-${currencyFormatter.format(latestTxWithBalance.balance)}"
-                } 
-                // If M-Pesa balance is 0.00, they might have an outstanding Fuliza debt
-                else if (latestTxWithBalance.balance == 0.0) {
-                    // Find the most recent standalone Fuliza message to capture the true debt
-                    val recentFuliza = transactions.firstOrNull { it.recipientName == "Fuliza M-PESA" && it.balance != null }
-                    
-                    if (recentFuliza != null && recentFuliza.balance != null && recentFuliza.balance > 0) {
-                        "-${currencyFormatter.format(recentFuliza.balance)}"
-                    } 
-                    else if (latestTxWithBalance.fulizaAmount != null) {
-                        "-${currencyFormatter.format(latestTxWithBalance.fulizaAmount)}"
-                    } 
-                    else {
-                        "0.00"
-                    }
-                }  
-                else {
-                    currencyFormatter.format(latestTxWithBalance.balance)
-                }
+            if (totalRawBalance < 0) {
+                "-${currencyFormatter.format(-totalRawBalance)}"
             } else {
-                "0.00"
+                currencyFormatter.format(totalRawBalance)
             }
         }
         .stateIn(
