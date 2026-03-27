@@ -113,6 +113,7 @@ fun LandingScreen(
                         icon = Icons.Filled.Analytics,
                         modifier = Modifier.weight(1f),
                         onClick = onNavigateToAnalytics
+                    )
                 }
             }
             
