@@ -80,6 +80,26 @@ class TransactionRepository @Inject constructor(
         return transactionDao.getTotalIncomeBetween(start, end, simId)
     }
 
+    fun getTotalFeesForPeriod(period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null, simId: Int? = null): Flow<Double?> {
+        val (start, end) = getTimestampRangeForPeriod(period, customStart, customEnd)
+        return transactionDao.getTotalFeesBetween(start, end, simId)
+    }
+
+    fun getSpentForPerson(personName: String, period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null, simId: Int? = null): Flow<Double?> {
+        val (start, end) = getTimestampRangeForPeriod(period, customStart, customEnd)
+        return transactionDao.getSpentForPersonBetween(personName, start, end, simId)
+    }
+
+    fun getIncomeFromPerson(personName: String, period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null, simId: Int? = null): Flow<Double?> {
+        val (start, end) = getTimestampRangeForPeriod(period, customStart, customEnd)
+        return transactionDao.getIncomeFromPersonBetween(personName, start, end, simId)
+    }
+
+    fun getFeesForPerson(personName: String, period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null, simId: Int? = null): Flow<Double?> {
+        val (start, end) = getTimestampRangeForPeriod(period, customStart, customEnd)
+        return transactionDao.getFeesForPersonBetween(personName, start, end, simId)
+    }
+
     suspend fun insertTransaction(transaction: TransactionEntity) {
         var finalTx = transaction
         

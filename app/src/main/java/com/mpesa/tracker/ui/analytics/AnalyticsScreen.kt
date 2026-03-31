@@ -56,6 +56,11 @@ fun AnalyticsScreen(
     val exportState by viewModel.exportState.collectAsState()
     val selectedSimId by viewModel.selectedSimId.collectAsState()
     val activeSimIds by viewModel.activeSimIds.collectAsState()
+    val totalFees by viewModel.totalFees.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val personTotalSpent by viewModel.personTotalSpent.collectAsState()
+    val personTotalIncome by viewModel.personTotalIncome.collectAsState()
+    val personTotalFees by viewModel.personTotalFees.collectAsState()
     val context = LocalContext.current
 
     val dateRangePickerState = rememberDateRangePickerState()
@@ -232,8 +237,52 @@ fun AnalyticsScreen(
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
                     item {
-                        // Pie Chart Visualization
-                        SpendingPieChart(expenses = expenses, modifier = Modifier.fillMaxWidth().height(200.dp))
+                        // Pie Chart Visualization and Total Fees
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            SpendingPieChart(expenses = expenses, modifier = Modifier.fillMaxWidth().height(200.dp))
+                            
+                            if (totalFees != null && totalFees!! > 0) {
+                                val formatter = NumberFormat.getNumberInstance(Locale.US).apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }
+                                Text(
+                                    text = "Total Transaction Fees: Ksh ${formatter.format(totalFees)}",
+                                    fontSize = 14.sp,
+                                    color = Color.Gray,
+                                    modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                    
+                    item {
+                        // Person / Merchant Search
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { viewModel.setSearchQuery(it) },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Filter by Person or Merchant") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryGreen,
+                                focusedLabelColor = PrimaryGreen
+                            )
+                        )
+                        
+                        if (searchQuery.isNotBlank() && (personTotalSpent != null || personTotalIncome != null || personTotalFees != null)) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    val formatter = NumberFormat.getNumberInstance(Locale.US).apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }
+                                    Text("Results for \"$searchQuery\"", fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+                                    Text("Money Sent: Ksh ${formatter.format(personTotalSpent ?: 0.0)}")
+                                    Text("Money Received: Ksh ${formatter.format(personTotalIncome ?: 0.0)}", color = PrimaryGreen)
+                                    Text("Transaction Fees: Ksh ${formatter.format(personTotalFees ?: 0.0)}", color = Color.Gray)
+                                }
+                            }
+                        }
                     }
                     
                     item {

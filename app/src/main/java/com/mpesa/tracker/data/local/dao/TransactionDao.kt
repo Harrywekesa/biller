@@ -41,6 +41,15 @@ interface TransactionDao {
     @Query("SELECT SUM(amount) FROM transactions WHERE isIncome = 1 AND dateTimestamp BETWEEN :startDate AND :endDate AND (:simId IS NULL OR simSubscriptionId = :simId)")
     fun getTotalIncomeBetween(startDate: Long, endDate: Long, simId: Int? = null): Flow<Double?>
 
+    @Query("SELECT SUM(amount) FROM transactions WHERE isIncome = 0 AND (recipientName LIKE '%' || :personName || '%' OR recipientNumber LIKE '%' || :personName || '%') AND dateTimestamp BETWEEN :startDate AND :endDate AND (:simId IS NULL OR simSubscriptionId = :simId)")
+    fun getSpentForPersonBetween(personName: String, startDate: Long, endDate: Long, simId: Int? = null): Flow<Double?>
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE isIncome = 1 AND (recipientName LIKE '%' || :personName || '%' OR recipientNumber LIKE '%' || :personName || '%') AND dateTimestamp BETWEEN :startDate AND :endDate AND (:simId IS NULL OR simSubscriptionId = :simId)")
+    fun getIncomeFromPersonBetween(personName: String, startDate: Long, endDate: Long, simId: Int? = null): Flow<Double?>
+
+    @Query("SELECT SUM(transactionCost) FROM transactions WHERE (recipientName LIKE '%' || :personName || '%' OR recipientNumber LIKE '%' || :personName || '%') AND dateTimestamp BETWEEN :startDate AND :endDate AND (:simId IS NULL OR simSubscriptionId = :simId)")
+    fun getFeesForPersonBetween(personName: String, startDate: Long, endDate: Long, simId: Int? = null): Flow<Double?>
+
     @Query("SELECT * FROM transactions WHERE receiptNumber = :receiptNumber LIMIT 1")
     suspend fun getTransactionByReceipt(receiptNumber: String): TransactionEntity?
 

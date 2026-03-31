@@ -768,6 +768,198 @@ public final class TransactionDao_Impl implements TransactionDao {
   }
 
   @Override
+  public Flow<Double> getSpentForPersonBetween(final String personName, final long startDate,
+      final long endDate, final Integer simId) {
+    final String _sql = "SELECT SUM(amount) FROM transactions WHERE isIncome = 0 AND (recipientName LIKE '%' || ? || '%' OR recipientNumber LIKE '%' || ? || '%') AND dateTimestamp BETWEEN ? AND ? AND (? IS NULL OR simSubscriptionId = ?)";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 6);
+    int _argIndex = 1;
+    if (personName == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindString(_argIndex, personName);
+    }
+    _argIndex = 2;
+    if (personName == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindString(_argIndex, personName);
+    }
+    _argIndex = 3;
+    _statement.bindLong(_argIndex, startDate);
+    _argIndex = 4;
+    _statement.bindLong(_argIndex, endDate);
+    _argIndex = 5;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
+    _argIndex = 6;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"transactions"}, new Callable<Double>() {
+      @Override
+      @Nullable
+      public Double call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final Double _result;
+          if (_cursor.moveToFirst()) {
+            final Double _tmp;
+            if (_cursor.isNull(0)) {
+              _tmp = null;
+            } else {
+              _tmp = _cursor.getDouble(0);
+            }
+            _result = _tmp;
+          } else {
+            _result = null;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
+  @Override
+  public Flow<Double> getIncomeFromPersonBetween(final String personName, final long startDate,
+      final long endDate, final Integer simId) {
+    final String _sql = "SELECT SUM(amount) FROM transactions WHERE isIncome = 1 AND (recipientName LIKE '%' || ? || '%' OR recipientNumber LIKE '%' || ? || '%') AND dateTimestamp BETWEEN ? AND ? AND (? IS NULL OR simSubscriptionId = ?)";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 6);
+    int _argIndex = 1;
+    if (personName == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindString(_argIndex, personName);
+    }
+    _argIndex = 2;
+    if (personName == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindString(_argIndex, personName);
+    }
+    _argIndex = 3;
+    _statement.bindLong(_argIndex, startDate);
+    _argIndex = 4;
+    _statement.bindLong(_argIndex, endDate);
+    _argIndex = 5;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
+    _argIndex = 6;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"transactions"}, new Callable<Double>() {
+      @Override
+      @Nullable
+      public Double call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final Double _result;
+          if (_cursor.moveToFirst()) {
+            final Double _tmp;
+            if (_cursor.isNull(0)) {
+              _tmp = null;
+            } else {
+              _tmp = _cursor.getDouble(0);
+            }
+            _result = _tmp;
+          } else {
+            _result = null;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
+  @Override
+  public Flow<Double> getFeesForPersonBetween(final String personName, final long startDate,
+      final long endDate, final Integer simId) {
+    final String _sql = "SELECT SUM(transactionCost) FROM transactions WHERE (recipientName LIKE '%' || ? || '%' OR recipientNumber LIKE '%' || ? || '%') AND dateTimestamp BETWEEN ? AND ? AND (? IS NULL OR simSubscriptionId = ?)";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 6);
+    int _argIndex = 1;
+    if (personName == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindString(_argIndex, personName);
+    }
+    _argIndex = 2;
+    if (personName == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindString(_argIndex, personName);
+    }
+    _argIndex = 3;
+    _statement.bindLong(_argIndex, startDate);
+    _argIndex = 4;
+    _statement.bindLong(_argIndex, endDate);
+    _argIndex = 5;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
+    _argIndex = 6;
+    if (simId == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindLong(_argIndex, simId);
+    }
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"transactions"}, new Callable<Double>() {
+      @Override
+      @Nullable
+      public Double call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final Double _result;
+          if (_cursor.moveToFirst()) {
+            final Double _tmp;
+            if (_cursor.isNull(0)) {
+              _tmp = null;
+            } else {
+              _tmp = _cursor.getDouble(0);
+            }
+            _result = _tmp;
+          } else {
+            _result = null;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
+  @Override
   public Object getTransactionByReceipt(final String receiptNumber,
       final Continuation<? super TransactionEntity> $completion) {
     final String _sql = "SELECT * FROM transactions WHERE receiptNumber = ? LIMIT 1";

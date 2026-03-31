@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.mpesa.tracker.ParserTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-03-22T08:37:45" hostname="DESKTOP-IQFU7RO" time="0.039">
+<testsuite name="com.mpesa.tracker.ParserTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-03-31T17:25:51" hostname="DESKTOP-IQFU7RO" time="0.044">
   <properties/>
-  <testcase name="testParseFuliza" classname="com.mpesa.tracker.ParserTest" time="0.034"/>
+  <testcase name="testParseFuliza" classname="com.mpesa.tracker.ParserTest" time="0.038"/>
   <testcase name="testParseFulizaFullyPaid" classname="com.mpesa.tracker.ParserTest" time="0.001"/>
   <testcase name="testParseReceivedFromBankWithHyphen" classname="com.mpesa.tracker.ParserTest" time="0.003"/>
   <system-out><![CDATA[MATCHED: 1372.23

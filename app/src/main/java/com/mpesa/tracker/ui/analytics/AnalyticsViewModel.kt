@@ -80,6 +80,64 @@ class AnalyticsViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val totalFees: StateFlow<Double?> = combine(
+        _selectedPeriod,
+        _customStartDate,
+        _customEndDate,
+        _selectedSimId
+    ) { period, start, end, simId -> AnalyticsArgs(period, start, end, simId) }
+        .flatMapLatest { args -> 
+            repository.getTotalFeesForPeriod(args.period, args.start, args.end, args.simId) 
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private data class PersonAnalyticsArgs(
+        val query: String,
+        val args: AnalyticsArgs
+    )
+
+    private val personAnalyticsArgsFlow = combine(
+        _searchQuery,
+        combine(
+            _selectedPeriod,
+            _customStartDate,
+            _customEndDate,
+            _selectedSimId
+        ) { period, start, end, simId -> AnalyticsArgs(period, start, end, simId) }
+    ) { query, args -> PersonAnalyticsArgs(query, args) }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val personTotalSpent: StateFlow<Double?> = personAnalyticsArgsFlow
+        .flatMapLatest { data -> 
+            if (data.query.isBlank()) flowOf(null)
+            else repository.getSpentForPerson(data.query, data.args.period, data.args.start, data.args.end, data.args.simId) 
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val personTotalIncome: StateFlow<Double?> = personAnalyticsArgsFlow
+        .flatMapLatest { data -> 
+            if (data.query.isBlank()) flowOf(null)
+            else repository.getIncomeFromPerson(data.query, data.args.period, data.args.start, data.args.end, data.args.simId) 
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val personTotalFees: StateFlow<Double?> = personAnalyticsArgsFlow
+        .flatMapLatest { data -> 
+            if (data.query.isBlank()) flowOf(null)
+            else repository.getFeesForPerson(data.query, data.args.period, data.args.start, data.args.end, data.args.simId) 
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     fun onPeriodSelected(period: ReportPeriod) {
         _selectedPeriod.value = period
         if (period != ReportPeriod.CUSTOM) {
@@ -96,6 +154,10 @@ class AnalyticsViewModel @Inject constructor(
         _customStartDate.value = start
         _customEndDate.value = end
         _selectedPeriod.value = ReportPeriod.CUSTOM
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
     }
 
     fun exportData(context: Context) {
