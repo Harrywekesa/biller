@@ -227,6 +227,11 @@ class TransactionRepository @Inject constructor(
         return transactionDao.getDailySpendingTrend(start, end, simId)
     }
 
+    fun getSpendingByCategoryAndDayOfWeek(period: ReportPeriod, customStart: Long? = null, customEnd: Long? = null, simId: Int? = null): Flow<List<com.mpesa.tracker.data.local.entities.CategoryDaySpend>> {
+        val (start, end) = getTimestampRangeForPeriod(period, customStart, customEnd)
+        return transactionDao.getSpendingByCategoryAndDayOfWeek(start, end, simId)
+    }
+
     /**
      * Replaced auto-detection with explicit categorization. 
      * Users assign bills to the "Subscriptions" category, and this function reads those merchants.

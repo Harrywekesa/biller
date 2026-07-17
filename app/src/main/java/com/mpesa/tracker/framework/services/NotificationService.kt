@@ -61,8 +61,22 @@ class NotificationService @Inject constructor(
         notificationManager.notify(merchantName.hashCode(), notification)
     }
 
+    fun showAiAdvice(message: String) {
+        val notification = NotificationCompat.Builder(context, CHANNEL_ALERTS)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("Morning Financial Insights ✨")
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+
+        notificationManager.notify(NOTIFICATION_ID_AI_ADVICE, notification)
+    }
+
     companion object {
         const val CHANNEL_ALERTS = "financial_alerts_channel"
         const val NOTIFICATION_ID_BUDGET = 1001
+        const val NOTIFICATION_ID_AI_ADVICE = 1002
     }
 }

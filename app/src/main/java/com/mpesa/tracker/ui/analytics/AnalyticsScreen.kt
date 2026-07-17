@@ -22,6 +22,9 @@ import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,6 +65,10 @@ fun AnalyticsScreen(
     val personTotalIncome by viewModel.personTotalIncome.collectAsState()
     val personTotalFees by viewModel.personTotalFees.collectAsState()
     val context = LocalContext.current
+    
+    val aiViewModel: AiInsightsViewModel = hiltViewModel()
+    val aiState by aiViewModel.uiState.collectAsState()
+    var showAiBottomSheet by remember { mutableStateOf(false) }
 
     val dateRangePickerState = rememberDateRangePickerState()
     var showDatePicker by remember { mutableStateOf(false) }
@@ -237,6 +244,28 @@ fun AnalyticsScreen(
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
                     item {
+                        // AI Insights Button
+                        Button(
+                            onClick = { 
+                                showAiBottomSheet = true
+                                aiViewModel.generateInsights(selectedPeriod)
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Filled.Star, 
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("✨ Generate AI Insights", fontWeight = FontWeight.Bold)
+                        }
+                        
                         // Pie Chart Visualization and Total Fees
                         Column(modifier = Modifier.fillMaxWidth()) {
                             SpendingPieChart(expenses = expenses, modifier = Modifier.fillMaxWidth().height(200.dp))
@@ -321,6 +350,52 @@ fun AnalyticsScreen(
                                 onNavigateToTransactions(expense.categoryId ?: -1)
                             }
                         )
+                    }
+                }
+            }
+        }
+    }
+    
+    if (showAiBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { 
+                showAiBottomSheet = false 
+                aiViewModel.resetState()
+            },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+                    .padding(bottom = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("AI Financial Insights", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                when (aiState) {
+                    is AiReportState.Idle -> { }
+                    is AiReportState.Loading -> {
+                        CircularProgressIndicator(color = PrimaryGreen)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Gemini is analyzing your spending...", color = Color.Gray)
+                    }
+                    is AiReportState.Success -> {
+                        val report = (aiState as AiReportState.Success).reportMarkdown
+                        LazyColumn {
+                            item {
+                                // simple markdown parsing or just text for right now
+                                Text(report, modifier = Modifier.fillMaxWidth(), lineHeight = 24.sp)
+                            }
+                        }
+                    }
+                    is AiReportState.Error -> {
+                        Text("Error: ${(aiState as AiReportState.Error).message}", color = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { aiViewModel.generateInsights(selectedPeriod) }) {
+                            Text("Retry")
+                        }
                     }
                 }
             }

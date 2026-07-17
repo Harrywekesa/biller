@@ -83,4 +83,19 @@ interface TransactionDao {
         ORDER BY dateString ASC
     """)
     fun getDailySpendingTrend(startDate: Long, endDate: Long, simId: Int? = null): Flow<List<DailySpend>>
+
+    @Query("""
+        SELECT 
+            c.name as categoryName, 
+            strftime('%w', t.dateTimestamp / 1000, 'unixepoch', 'localtime') as dayOfWeek,
+            SUM(t.amount) as totalAmount
+        FROM transactions t
+        LEFT JOIN categories c ON t.categoryId = c.id
+        WHERE t.dateTimestamp BETWEEN :startDate AND :endDate
+        AND t.isIncome = 0
+        AND (:simId IS NULL OR t.simSubscriptionId = :simId)
+        GROUP BY c.id, dayOfWeek
+        ORDER BY totalAmount DESC
+    """)
+    fun getSpendingByCategoryAndDayOfWeek(startDate: Long, endDate: Long, simId: Int? = null): Flow<List<com.mpesa.tracker.data.local.entities.CategoryDaySpend>>
 }

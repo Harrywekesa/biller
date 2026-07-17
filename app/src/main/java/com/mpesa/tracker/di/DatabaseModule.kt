@@ -40,7 +40,6 @@ object DatabaseModule {
             "mpesa_tracker_db"
         )
         .addMigrations(MIGRATION_6_7)
-        .fallbackToDestructiveMigration() // Useful during active MVP development
         .addCallback(AppDatabaseCallback(databaseProvider)) // Triggers initial data seeding
         .build()
     }
