@@ -1,3 +1,10 @@
 <resources>
-    <style name="Theme.MpesaTracker" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        Minimal launch theme: dark window background prevents the white cold-start
+        flash before Compose draws. Status/nav bar appearance is set at runtime in
+        Theme.kt via WindowInsetsControllerCompat.
+    -->
+    <style name="Theme.MpesaTracker" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#0E0E12</item>
+    </style>
 </resources>
