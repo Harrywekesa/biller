@@ -10,15 +10,20 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SubscriptionDao {
-    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSubscription(subscription: SubscriptionEntity)
 
     @Update
     suspend fun updateSubscription(subscription: SubscriptionEntity)
 
+    @Query("DELETE FROM subscriptions WHERE id = :id")
+    suspend fun deleteSubscription(id: Int)
+
     @Query("SELECT * FROM subscriptions WHERE isActive = 1 ORDER BY expectedNextPaymentDate ASC")
     fun getActiveSubscriptions(): Flow<List<SubscriptionEntity>>
+
+    @Query("SELECT * FROM subscriptions ORDER BY isActive DESC, expectedNextPaymentDate ASC")
+    fun getAllSubscriptions(): Flow<List<SubscriptionEntity>>
 
     @Query("SELECT * FROM subscriptions WHERE merchantNameMatcher = :matcher LIMIT 1")
     suspend fun getSubscriptionByMatcher(matcher: String): SubscriptionEntity?

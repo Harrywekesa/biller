@@ -31,7 +31,9 @@ object BiometricPromptHelper {
 
                 override fun onAuthenticationFailed() {
                     super.onAuthenticationFailed()
-                    onError("Authentication failed. Try again.")
+                    // Do NOT call onError here. onAuthenticationFailed fires on every failed
+                    // scan attempt (e.g. wrong finger) — the system prompt already shows
+                    // "Not recognized. Try again." The terminal failure is onAuthenticationError.
                 }
             })
 

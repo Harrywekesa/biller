@@ -16,5 +16,9 @@ data class ParsedMpesaResult(
     val balance: Double? = null,
     val fulizaAmount: Double? = null,
     val fulizaFee: Double? = null,
-    val rawSms: String
-)
+    val rawSms: String,
+    val linkedReceiptNumber: String? = null
+) {
+    val isIncome: Boolean
+        get() = type == TransactionType.RECEIVED_MONEY
+}

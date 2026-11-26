@@ -20,20 +20,42 @@ android {
         vectorDrawables {
             useSupportLibrary true
         }
+        
+        def localProperties = new Properties()
+        def localPropertiesFile = rootProject.file('local.properties')
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.withInputStream { instr ->
+                localProperties.load(instr)
+            }
+        }
+        buildConfigField "String", "GEMINI_API_KEY", "\"${localProperties.getProperty('GEMINI_API_KEY') ?: ''}\""
+        
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments += ["room.schemaLocation": "$projectDir/schemas"]
+            }
+        }
     }
 
     signingConfigs {
         release {
-            storeFile file('release.keystore')
-            storePassword 'password'
-            keyAlias 'release'
-            keyPassword 'password'
+            def localProps = new Properties()
+            def localPropsFile = rootProject.file('local.properties')
+            if (localPropsFile.exists()) {
+                localPropsFile.withInputStream { instr -> localProps.load(instr) }
+            }
+            def keystorePath = localProps.getProperty('KEYSTORE_PATH')
+            storeFile keystorePath ? file(keystorePath) : null
+            storePassword localProps.getProperty('KEYSTORE_PASSWORD', '')
+            keyAlias localProps.getProperty('KEY_ALIAS', 'release')
+            keyPassword localProps.getProperty('KEY_PASSWORD', '')
         }
     }
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
         }
@@ -47,6 +69,12 @@ android {
     }
     buildFeatures {
         compose true
+        buildConfig true
+    }
+    testOptions {
+        unitTests {
+            returnDefaultValues = true
+        }
     }
     composeOptions {
         kotlinCompilerExtensionVersion '1.5.14'
@@ -81,6 +109,9 @@ dependencies {
     kapt "com.google.dagger:hilt-android-compiler:2.51.1"
     implementation 'androidx.hilt:hilt-navigation-compose:1.1.0'
 
+    // Navigation Compose
+    implementation 'androidx.navigation:navigation-compose:2.7.7'
+
     // Coroutines
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 
@@ -95,6 +126,9 @@ dependencies {
     // TFLite support library for tensor manipulation
     implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
 
+    // Gemini AI
+    implementation 'com.google.ai.client.generativeai:generativeai:0.6.0'
+
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
@@ -102,4 +136,10 @@ dependencies {
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
     debugImplementation 'androidx.compose.ui:ui-tooling'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
+}
+
+kapt {
+    arguments {
+        arg("room.schemaLocation", "$projectDir/schemas")
+    }
 }

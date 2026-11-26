@@ -62,7 +62,7 @@ class AiInsightsViewModel @Inject constructor(
                 }
 
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("AiInsightsViewModel", "Failed to generate AI insights", e)
                 _uiState.value = AiReportState.Error("An error occurred: ${e.localizedMessage}")
             }
         }

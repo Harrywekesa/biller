@@ -1,5 +1,6 @@
 package com.mpesa.tracker.domain.parser
 
+import android.util.Log
 import com.mpesa.tracker.data.local.entities.TransactionType
 import java.util.Calendar
 import java.util.TimeZone
@@ -21,7 +22,7 @@ object MpesaParser {
     // Specific Regexes for tighter matching
     
     // PAYBILL / BUY GOODS (e.g., OJM12ABCD34 Confirmed. Ksh500.00 paid to NAIVAS...)
-    private val PAYBILL_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+paid\s+to\s+(?<recipient>.+?)\.\s+on\s+(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\.(?:\s*New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}))?.*""".toRegex(RegexOption.IGNORE_CASE)
+    private val PAYBILL_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+paid\s+to\s+(?<recipient>.+?)\.?\s+on\s+(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\.(?:\s*New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}))?.*""".toRegex(RegexOption.IGNORE_CASE)
 
     // SEND MONEY (e.g., OJM... Confirmed. Ksh500 sent to JOHN DOE 07123...)
     private val SEND_MONEY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+sent\s+to\s+(?<recipient>.+?)(?:\s+(?<phone>(?:07|01|254|2547|2541)[\d*]{6,12}))?\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\..*?New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}).*""".toRegex(RegexOption.IGNORE_CASE)
@@ -35,8 +36,16 @@ object MpesaParser {
     // RECEIVED MONEY
     private val RECEIVED_MONEY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s*You\s+have\s+received\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>.+?)(?:\s+(?<phone>(?:07|01|254|2547|2541)[\d*]{6,12}))?\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\.?.*?New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
     
-    // AGENT WITHDRAWAL (e.g. OJM... Confirmed. on 12/4/23 at 10:30 AMWithdraw Ksh500.00 from 123456 - AGENT NAME New M-PESA balance is Ksh...)
-    private val WITHDRAW_CASH_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)(?:\s*)?[Ww]ithdraw\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>.+?)\.?[^\d]*New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}).*""".toRegex(RegexOption.IGNORE_CASE)
+    // AGENT WITHDRAWAL (e.g. QJM12ABCD34 Confirmed. on 12/04/23 at 10:30 AMWithdraw Ksh500.00 from 123456 - AGENT NAME. New M-PESA balance is Ksh1,000.00...)
+    private val WITHDRAW_CASH_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\s*[Ww]ithdraw\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>.+?)(?=\.?\s*New\s+M-PESA\s+balance)""".toRegex(RegexOption.IGNORE_CASE)
+
+    // M-PESA REVERSAL
+    // E.g. "OJM12REV01 Confirmed. Transaction OJM12ABCD34 has been reversed on 12/4/23 at 10:45 AM. Reversed amount Ksh500.00. New M-PESA balance is Ksh1,500.00."
+    private val REVERSAL_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+Transaction\s+(?<linked>[A-Z0-9]+)\s+(?:has\s+been\s+)?reversed.*?on\s+(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M).*?(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2}).*?(?:New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}))?""".toRegex(RegexOption.IGNORE_CASE)
+
+    // MERCHANT TILL CONFIRMATION (sometimes delivered from Equity/PesaLink/Safaricom channels)
+    // E.g. "Confirmed. Payment of KES. 50.00 to JONICE ENT Till No. 0711813785 has been received. Ref. UKGIR2F6XR on 16-11-2026 at 07:55. Thank you."
+    private val TILL_CONFIRMATION_REGEX = """Confirmed\.\s+Payment\s+of\s+(?:KES|Ksh)\.?\s*(?<amount>[\d,]+(?:\.\d{1,2})?)\s+to\s+(?<recipient>.+?)\s+Till\s+No\.\s*(?<till>\d+)\s+has\s+been\s+received\.\s+Ref\.?\s*(?<receipt>[A-Z0-9]+)\s+on\s+(?<date>\d{2}-\d{2}-\d{4}\s+at\s+\d{2}:\d{2})""".toRegex(RegexOption.IGNORE_CASE)
 
     // FULIZA OVERDRAFT IDENTIFIER (Standalone)
     // E.g., "UCEIR9COVD Confirmed. Fuliza M-PESA amount is Ksh 100.00. Access Fee charged Ksh 1.00. Total Fuliza M-PESA outstanding amount is Ksh1660.84 due on 05/04/26."
@@ -50,14 +59,69 @@ object MpesaParser {
     fun parseMessage(smsBody: String, smsTimestamp: Long? = null): ParsedMpesaResult? {
         val cleanBody = smsBody.replace("\n", " ").trim()
 
-        return parsePaybill(cleanBody) 
+        // Ignore transient bank/M-Pesa awaiting notice ("...Please await MPESA notification.")
+        if (cleanBody.contains("Please await MPESA notification", ignoreCase = true)) {
+            return null
+        }
+
+        return parseReversal(cleanBody)
+            ?: parsePaybill(cleanBody)
             ?: parseSentToAccount(cleanBody)
-            ?: parseSendMoney(cleanBody) 
+            ?: parseSendMoney(cleanBody)
             ?: parseReceivedMoney(cleanBody)
             ?: parseWithdrawCash(cleanBody)
             ?: parseAirtime(cleanBody)
             ?: parseFulizaRepayment(cleanBody, smsTimestamp)
             ?: parseStandaloneFuliza(cleanBody, smsTimestamp)
+            ?: parseTillConfirmation(cleanBody)
+    }
+
+    private fun parseReversal(sms: String): ParsedMpesaResult? {
+        val match = REVERSAL_REGEX.find(sms) ?: return null
+        val amount = match.groups["amount"]?.value?.replace(",", "")?.toDoubleOrNull() ?: return null
+        val balance = match.groups["balance"]?.value?.replace(",", "")?.toDoubleOrNull()
+        val linked = match.groups["linked"]?.value?.trim()
+        val timestamp = parseRobustDate(match.groups["date"]?.value ?: "")
+        return ParsedMpesaResult(
+            receiptNumber = match.groups["receipt"]?.value ?: "",
+            type = TransactionType.UNKNOWN,
+            amount = amount,
+            transactionCost = 0.0,
+            timestamp = timestamp,
+            recipientName = "Reversal ($linked)",
+            balance = balance,
+            rawSms = sms,
+            linkedReceiptNumber = linked
+        )
+    }
+
+    private fun parseTillConfirmation(sms: String): ParsedMpesaResult? {
+        val match = TILL_CONFIRMATION_REGEX.find(sms) ?: return null
+        val amount = match.groups["amount"]?.value?.replace(",", "")?.toDoubleOrNull() ?: return null
+        val dateStr = match.groups["date"]?.value ?: ""
+        val timestamp = parseDashDate24h(dateStr) ?: System.currentTimeMillis()
+        return ParsedMpesaResult(
+            receiptNumber = match.groups["receipt"]?.value?.trim() ?: return null,
+            type = TransactionType.BUY_GOODS,
+            amount = amount,
+            transactionCost = 0.0,
+            timestamp = timestamp,
+            recipientName = match.groups["recipient"]?.value?.trim() ?: "Till Merchant",
+            recipientNumber = match.groups["till"]?.value?.trim(),
+            balance = null,
+            rawSms = sms
+        )
+    }
+
+    private fun parseDashDate24h(dateStr: String): Long? {
+        return try {
+            val sdf = java.text.SimpleDateFormat("dd-MM-yyyy 'at' HH:mm", java.util.Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("Africa/Nairobi")
+            }
+            sdf.parse(dateStr.trim())?.time
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun parseFulizaRepayment(sms: String, smsTimestamp: Long?): ParsedMpesaResult? {
@@ -69,11 +133,11 @@ object MpesaParser {
         try {
             val balStr = match.groups["balance"]?.value?.replace(",", "")
             if (balStr != null) balance = balStr.toDouble()
-        } catch(e: Exception) {}
+        } catch(e: Exception) { Log.w("MpesaParser", "Failed to parse field", e) }
 
         return ParsedMpesaResult(
             receiptNumber = (match.groups["receipt"]?.value ?: "") + "-REPAY",
-            type = TransactionType.PAYBILL,
+            type = TransactionType.FULIZA_REPAYMENT,
             amount = amountStr.toDouble(),
             transactionCost = 0.0,
             timestamp = smsTimestamp ?: System.currentTimeMillis(), // Use real SMS received time or fallback to now
@@ -94,13 +158,13 @@ object MpesaParser {
         try {
             val balStr = match.groups["balance"]?.value?.replace(",", "")
             if (balStr != null) balance = balStr.toDouble()
-        } catch(e: Exception) {}
+        } catch(e: Exception) { Log.w("MpesaParser", "Failed to parse field", e) }
 
         val timestamp = smsTimestamp ?: System.currentTimeMillis() // Use actual SMS time over Due Date
         
         return ParsedMpesaResult(
             receiptNumber = (match.groups["receipt"]?.value ?: "") + "-FULIZA",
-            type = TransactionType.PAYBILL, // We can categorize it as PAYBILL/BUY_GOODS or create a new FULIZA type
+            type = TransactionType.FULIZA_DRAW, // Fuliza draw is DEBT, not a spending transaction
             amount = amountStr.toDouble(),
             transactionCost = fee,
             timestamp = timestamp,
@@ -146,7 +210,7 @@ object MpesaParser {
         try {
             val balStr = match.groups["balance"]?.value?.replace(",", "")
             if (balStr != null) balance = balStr.toDouble()
-        } catch(e: Exception) {}
+        } catch(e: Exception) { Log.w("MpesaParser", "Failed to parse field", e) }
 
         val dateStr = match.groups["date"]?.value ?: ""
         val timestamp = parseRobustDate(dateStr)
@@ -176,55 +240,42 @@ object MpesaParser {
     private fun parseWithdrawCash(sms: String): ParsedMpesaResult? {
         val match = WITHDRAW_CASH_REGEX.find(sms) ?: return null
         val recipientName = match.groups["recipient"]?.value?.trim() ?: "Unknown"
-        // Withdraw cost sometimes does not match standard group if format changes slightly
-        var cost = match.groups["cost"]?.value?.replace(",", "")?.toDoubleOrNull() ?: 0.0
-        
-        if (cost == 0.0) {
-           val costRegex = """Transaction\s+cost,\s+(?:Ksh|Kshs)\s?([\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
-           costRegex.find(sms)?.groups?.get(1)?.value?.replace(",", "")?.toDoubleOrNull()?.let { 
-               cost = it 
-           }
-        }
+        val costRegex = """Transaction\s+cost,\s+(?:Ksh|Kshs)\s?([\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
+        val cost = costRegex.find(sms)?.groups?.get(1)?.value?.replace(",", "")?.toDoubleOrNull() ?: 0.0
+
+        val balRegex = """New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?([\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
+        val balance = balRegex.find(sms)?.groups?.get(1)?.value?.replace(",", "")?.toDoubleOrNull()
 
         return buildResult(match, TransactionType.WITHDRAW_CASH, sms).copy(
             recipientName = recipientName,
-            transactionCost = cost
+            transactionCost = cost,
+            balance = balance
         )
     }
 
     private fun buildResult(match: MatchResult, type: TransactionType, raw: String): ParsedMpesaResult {
         val amountStr = match.groups["amount"]?.value?.replace(",", "") ?: "0.0"
-        
-        var cost = 0.0
-        try {
-            val costStr = match.groups["cost"]?.value?.replace(",", "")
-            if (costStr != null) cost = costStr.toDouble()
-        } catch(e: Exception) {}
 
-        if (cost == 0.0) {
-           val costRegex = """Transaction\s+cost,\s+(?:Ksh|Kshs)\s?([\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
-           costRegex.find(raw)?.groups?.get(1)?.value?.replace(",", "")?.toDoubleOrNull()?.let { 
-               cost = it 
-           }
-        }
+        val costRegex = """Transaction\s+cost,\s+(?:Ksh|Kshs)\s?([\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
+        val cost = costRegex.find(raw)?.groups?.get(1)?.value?.replace(",", "")?.toDoubleOrNull() ?: 0.0
 
         var balance: Double? = null
         try {
             val balStr = match.groups["balance"]?.value?.replace(",", "")
             if (balStr != null) balance = balStr.toDouble()
-        } catch(e: Exception) {}
+        } catch(e: Exception) { Log.w("MpesaParser", "Failed to parse balance field", e) }
         
-        // Secondary Pass for Fuliza Overdraft (Legacy embedded format)
+        // Secondary Pass for Fuliza Overdraft (embedded in payment SMS)
         var fulizaAmount: Double? = null
         var fulizaFee: Double? = null
         try {
-            val FULIZA_LEGACY_REGEX = """Fuliza\s+M-Pesa\s+amount\s+is\s+(?:Ksh|Kshs)\s?(?<fAmount>[\d,]+(?:\.\d{2})?).*?Fee\s+charged\s+(?:Ksh|Kshs)\s?(?<fFee>[\d,]+(?:\.\d{2})?)""".toRegex(RegexOption.IGNORE_CASE)
-            val fulizaMatch = FULIZA_LEGACY_REGEX.find(raw)
+            val FULIZA_EMBEDDED_REGEX = """(?:Fuliza\s+M-Pesa\s+amount\s+is|Amount\s+borrowed)\s+(?:Ksh|Kshs)\s?(?<fAmount>[\d,]+(?:\.\d{2})?).*?Fee(?:\s+charged)?\s+(?:Ksh|Kshs)\s?(?<fFee>[\d,]+(?:\.\d{2})?)""".toRegex(RegexOption.IGNORE_CASE)
+            val fulizaMatch = FULIZA_EMBEDDED_REGEX.find(raw)
             if (fulizaMatch != null) {
                 fulizaAmount = fulizaMatch.groups["fAmount"]?.value?.replace(",", "")?.toDoubleOrNull()
                 fulizaFee = fulizaMatch.groups["fFee"]?.value?.replace(",", "")?.toDoubleOrNull()
             }
-        } catch(e: Exception) {}
+        } catch(e: Exception) { Log.w("MpesaParser", "Failed to parse Fuliza field", e) }
 
         val dateStr = match.groups["date"]?.value ?: ""
         val timestamp = parseRobustDate(dateStr)
@@ -272,7 +323,8 @@ object MpesaParser {
                         hour = 0
                     }
 
-                    val cal = Calendar.getInstance()
+                    // All M-Pesa SMS dates are in East Africa Time (UTC+3) regardless of device timezone
+                    val cal = Calendar.getInstance(TimeZone.getTimeZone("Africa/Nairobi"))
                     cal.set(year, month, day, hour, minute, 0)
                     cal.set(Calendar.MILLISECOND, 0)
                     return cal.timeInMillis

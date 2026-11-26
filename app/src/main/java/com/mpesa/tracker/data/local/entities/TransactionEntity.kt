@@ -2,23 +2,36 @@ package com.mpesa.tracker.data.local.entities
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.mpesa.tracker.domain.parser.AccountSource
 
 @Entity(tableName = "transactions")
 data class TransactionEntity(
     @PrimaryKey
-    val receiptNumber: String, // e.g., "OJM12ABCD34"
+    val receiptNumber: String, // Receipt ID or deterministic fingerprint for refless bank SMS
     val type: TransactionType,
     val amount: Double,
     val transactionCost: Double = 0.0,
     val dateTimestamp: Long, // Unix timestamp in milliseconds
-    val recipientName: String, // e.g., "NAIVAS SUPERMARKET"
-    val recipientNumber: String? = null, // Paybill/Till number or Phone number
-    val balance: Double? = null, // The remaining M-Pesa balance after the transaction
-    val categoryId: Int? = null, // Foreign Key relation to CategoryEntity
+    val recipientName: String,
+    val recipientNumber: String? = null,
+    val balance: Double? = null,
+    val categoryId: Int? = null,
     val isRecurring: Boolean = false,
-    val isIncome: Boolean, // True if RECEIVED_MONEY, False otherwise
-    val fulizaAmount: Double? = null, // Extracted Fuliza loan amount if utilized
-    val fulizaFee: Double? = null, // Extracted Fuliza dynamic fee
-    val rawSmsBody: String, // Useful for debugging parsing failures 
-    val simSubscriptionId: Int? = null // Safaricom Line 1 or Line 2 tracking
-)
+    val isIncome: Boolean,
+    val fulizaAmount: Double? = null,
+    val fulizaFee: Double? = null,
+    val rawSmsBody: String,
+    val simSubscriptionId: Int? = null,
+    val linkedReceiptNumber: String? = null,
+    val userNote: String? = null,
+    val accountSource: String = AccountSource.MPESA.name,
+    val transactionNature: String = TransactionNature.EXPENSE.name,
+    val transferGroupRef: String? = null,
+    val isManualEntry: Boolean = false
+) {
+    val natureEnum: TransactionNature
+        get() = TransactionNature.fromName(transactionNature)
+
+    val sourceEnum: AccountSource
+        get() = AccountSource.fromName(accountSource)
+}

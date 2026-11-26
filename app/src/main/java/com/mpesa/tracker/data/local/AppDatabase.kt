@@ -2,21 +2,21 @@ package com.mpesa.tracker.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
-import com.mpesa.tracker.data.local.dao.CategoryDao
-import com.mpesa.tracker.data.local.entities.CategoryEntity
-import com.mpesa.tracker.data.local.entities.SubscriptionEntity
-import com.mpesa.tracker.data.local.entities.TransactionEntity
-import com.mpesa.tracker.data.local.dao.SubscriptionDao
-import com.mpesa.tracker.data.local.dao.TransactionDao
-import com.mpesa.tracker.data.local.entities.CustomRuleEntity
-import com.mpesa.tracker.data.local.dao.CustomRuleDao
-import com.mpesa.tracker.data.local.entities.BudgetEntity
-import com.mpesa.tracker.data.local.dao.BudgetDao
+import com.mpesa.tracker.data.local.dao.*
+import com.mpesa.tracker.data.local.entities.*
 
 @Database(
-    entities = [TransactionEntity::class, CategoryEntity::class, SubscriptionEntity::class, CustomRuleEntity::class, BudgetEntity::class],
-    version = 7,
-    exportSchema = false
+    entities = [
+        TransactionEntity::class,
+        CategoryEntity::class,
+        SubscriptionEntity::class,
+        CustomRuleEntity::class,
+        BudgetEntity::class,
+        TransferRuleEntity::class,
+        UnparsedSmsEntity::class
+    ],
+    version = 11,
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
@@ -24,4 +24,15 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun subscriptionDao(): SubscriptionDao
     abstract fun customRuleDao(): CustomRuleDao
     abstract fun budgetDao(): BudgetDao
+    abstract fun transferRuleDao(): TransferRuleDao
+    abstract fun unparsedSmsDao(): UnparsedSmsDao
+
+    companion object {
+        val ALL_MIGRATIONS = arrayOf(
+            AppMigrations.MIGRATION_7_8,
+            AppMigrations.MIGRATION_8_9,
+            AppMigrations.MIGRATION_9_10,
+            AppMigrations.MIGRATION_10_11
+        )
+    }
 }

@@ -32,7 +32,17 @@ class NotificationService @Inject constructor(
                 description = "Alerts for detected bills and budget limits"
             }
 
+            // AI Advice Channel — high priority so it appears as a heads-up notification
+            val aiChannel = NotificationChannel(
+                CHANNEL_AI_ADVICE,
+                "Morning AI Insights",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Daily personalised financial tips from Gemini AI"
+            }
+
             notificationManager.createNotificationChannel(generalChannel)
+            notificationManager.createNotificationChannel(aiChannel)
         }
     }
 
@@ -49,20 +59,29 @@ class NotificationService @Inject constructor(
         notificationManager.notify(NOTIFICATION_ID_BUDGET, notification)
     }
 
-    fun showBillReminder(merchantName: String, expectedAmount: Double) {
+    /**
+     * Shows a reminder for an upcoming recurring bill.
+     * @param notificationId Must be unique per merchant to avoid collisions.
+     */
+    fun showBillReminder(
+        merchantName: String,
+        amount: String,
+        dueLabel: String,
+        notificationId: Int
+    ) {
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERTS)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Upcoming Bill Detected")
-            .setContentText("You might have a Ksh $expectedAmount bill coming up for $merchantName.")
+            .setContentTitle("Upcoming Bill: $merchantName")
+            .setContentText("$amount payment expected $dueLabel.")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()
 
-        notificationManager.notify(merchantName.hashCode(), notification)
+        notificationManager.notify(notificationId, notification)
     }
 
     fun showAiAdvice(message: String) {
-        val notification = NotificationCompat.Builder(context, CHANNEL_ALERTS)
+        val notification = NotificationCompat.Builder(context, CHANNEL_AI_ADVICE)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("Morning Financial Insights ✨")
             .setContentText(message)
@@ -76,6 +95,7 @@ class NotificationService @Inject constructor(
 
     companion object {
         const val CHANNEL_ALERTS = "financial_alerts_channel"
+        const val CHANNEL_AI_ADVICE = "ai_advice_channel"
         const val NOTIFICATION_ID_BUDGET = 1001
         const val NOTIFICATION_ID_AI_ADVICE = 1002
     }

@@ -18,6 +18,7 @@ class MpesaTrackerApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         scheduleAiAdviceWorker()
+        scheduleBillReminderWorker()
     }
     
     private fun scheduleAiAdviceWorker() {
@@ -32,8 +33,8 @@ class MpesaTrackerApp : Application(), Configuration.Provider {
         dueDate.set(java.util.Calendar.SECOND, 0)
         
         if (dueDate.before(currentDate)) {
-            // It's after 7 AM today, schedule for tomorrow
-            dueDate.add(java.util.Calendar.HOUR_OF_DAY, 24)
+            // It's after 7 AM today — advance by one calendar day (not 24h, which breaks on DST transitions)
+            dueDate.add(java.util.Calendar.DAY_OF_YEAR, 1)
         }
         
         val timeDiff = dueDate.timeInMillis - currentDate.timeInMillis
@@ -53,6 +54,20 @@ class MpesaTrackerApp : Application(), Configuration.Provider {
             "DailyAiAdviceWorker",
             androidx.work.ExistingPeriodicWorkPolicy.KEEP,
             dailyWorkRequest
+        )
+    }
+
+    private fun scheduleBillReminderWorker() {
+        val weeklyReminder = androidx.work.PeriodicWorkRequestBuilder<com.mpesa.tracker.framework.workers.BillReminderWorker>(
+            7, java.util.concurrent.TimeUnit.DAYS
+        )
+        .setInitialDelay(1, java.util.concurrent.TimeUnit.HOURS) // First check 1 hour after app start
+        .build()
+
+        androidx.work.WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "BillReminderWorker",
+            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+            weeklyReminder
         )
     }
 }

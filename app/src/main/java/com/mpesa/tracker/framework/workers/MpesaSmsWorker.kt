@@ -5,11 +5,13 @@ import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.mpesa.tracker.data.local.dao.TransactionDao
 import com.mpesa.tracker.data.local.entities.TransactionEntity
+import com.mpesa.tracker.data.local.entities.TransactionNature
 import com.mpesa.tracker.data.local.entities.TransactionType
+import com.mpesa.tracker.data.repository.TransactionRepository
+import com.mpesa.tracker.domain.parser.AccountSource
+import com.mpesa.tracker.domain.parser.BankSmsParser
 import com.mpesa.tracker.domain.parser.MpesaParser
-import com.mpesa.tracker.domain.classifier.CategorizationEngine
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
@@ -19,25 +21,31 @@ import kotlinx.coroutines.withContext
 class MpesaSmsWorker @AssistedInject constructor(
     @Assisted private val context: Context,
     @Assisted private val workerParams: WorkerParameters,
-    private val transactionDao: TransactionDao,
-    private val categorizationEngine: CategorizationEngine
+    private val transactionRepository: TransactionRepository
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        val smsBody = inputData.getString("sms_body")
+        val smsBody = inputData.getString("sms_body") ?: return@withContext Result.failure()
+        val smsSender = inputData.getString("sms_sender") ?: "MPESA"
+        val smsDate = inputData.getLong("sms_date", System.currentTimeMillis())
+        if (smsBody.isBlank()) return@withContext Result.failure()
 
-        if (smsBody.isNullOrEmpty()) {
-            Log.e("MpesaSmsWorker", "No SMS body provided to worker")
-            return@withContext Result.failure()
-        }
-
-        try {
-            val parsedResult = MpesaParser.parseMessage(smsBody)
+        return@withContext try {
+            val parsedResult = MpesaParser.parseMessage(smsBody, smsDate)
             if (parsedResult != null) {
-                val simId = inputData.getInt("sim_id", -1)
-                val finalSimId = if (simId != -1) simId else null
-                
-                var transaction = TransactionEntity(
+                val rawSimId = inputData.getInt("sim_id", -1)
+                val finalSimId = if (rawSimId >= 0) rawSimId else null
+
+                val initialNature = when {
+                    parsedResult.recipientName.startsWith("Reversal (") -> TransactionNature.REVERSAL
+                    parsedResult.type == TransactionType.FULIZA_DRAW -> TransactionNature.LOAN_DRAW
+                    parsedResult.type == TransactionType.FULIZA_REPAYMENT -> TransactionNature.LOAN_REPAY
+                    parsedResult.type == TransactionType.WITHDRAW_CASH -> TransactionNature.TRANSFER
+                    parsedResult.type == TransactionType.RECEIVED_MONEY -> TransactionNature.INCOME
+                    else -> TransactionNature.EXPENSE
+                }
+
+                val transaction = TransactionEntity(
                     receiptNumber = parsedResult.receiptNumber,
                     type = parsedResult.type,
                     amount = parsedResult.amount,
@@ -46,29 +54,34 @@ class MpesaSmsWorker @AssistedInject constructor(
                     recipientName = parsedResult.recipientName,
                     recipientNumber = parsedResult.recipientNumber,
                     balance = parsedResult.balance,
-                    categoryId = null, 
+                    categoryId = null,
                     isIncome = parsedResult.type == TransactionType.RECEIVED_MONEY,
                     fulizaAmount = parsedResult.fulizaAmount,
                     fulizaFee = parsedResult.fulizaFee,
                     rawSmsBody = parsedResult.rawSms,
-                    simSubscriptionId = finalSimId
+                    simSubscriptionId = finalSimId,
+                    linkedReceiptNumber = parsedResult.linkedReceiptNumber,
+                    accountSource = AccountSource.MPESA.name,
+                    transactionNature = initialNature.name
                 )
-                
-                val categoryId = categorizationEngine.categorize(transaction)
-                if (categoryId != null) {
-                    transaction = transaction.copy(categoryId = categoryId)
-                }
 
-                transactionDao.insertTransaction(transaction)
-                Log.d("MpesaSmsWorker", "Transaction saved to database via WorkManager: ${transaction.receiptNumber}")
-                return@withContext Result.success()
+                transactionRepository.ingestTransaction(transaction)
+                Log.d("MpesaSmsWorker", "Ingested M-Pesa tx: ${transaction.receiptNumber}")
+                Result.success()
             } else {
-                Log.w("MpesaSmsWorker", "Worker failed to Regex match the M-Pesa message.")
-                return@withContext Result.failure()
+                if (smsBody.contains("Confirmed", ignoreCase = true) && !smsBody.contains("Please await MPESA", ignoreCase = true)) {
+                    transactionRepository.logUnparsedSms(
+                        sender = smsSender,
+                        body = smsBody,
+                        bodyHash = BankSmsParser.sha256("$smsSender|$smsBody"),
+                        receivedAt = smsDate
+                    )
+                }
+                Result.success()
             }
         } catch (e: Exception) {
             Log.e("MpesaSmsWorker", "Error processing SMS", e)
-            return@withContext Result.failure()
+            Result.failure()
         }
     }
 }

@@ -2,73 +2,59 @@ package com.mpesa.tracker
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
-import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
-import com.mpesa.tracker.framework.security.BiometricPromptHelper
-import com.mpesa.tracker.framework.services.SmsSyncService
-import com.mpesa.tracker.data.local.dao.CategoryDao
-import com.mpesa.tracker.data.local.dao.SubscriptionDao
-import com.mpesa.tracker.data.local.AppDatabaseCallback
-import com.mpesa.tracker.ui.theme.MpesaTrackerTheme
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.first
-import javax.inject.Inject
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mpesa.tracker.ui.theme.PrimaryGreen
-
-sealed class Screen {
-    object Landing : Screen()
-    object Dashboard : Screen()
-    object Analytics : Screen()
-    data class Transactions(val categoryId: Int? = null, val incomeOnly: Boolean = false) : Screen()
-    object Subscriptions : Screen()
-}
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.lifecycleScope
+import com.mpesa.tracker.data.local.AppDatabaseCallback
+import com.mpesa.tracker.data.local.dao.CategoryDao
+import com.mpesa.tracker.data.local.dao.SubscriptionDao
+import com.mpesa.tracker.data.repository.UserPreferencesRepository
+import com.mpesa.tracker.framework.security.BiometricPromptHelper
+import com.mpesa.tracker.framework.services.SmsSyncService
+import com.mpesa.tracker.ui.navigation.AppNavHost
+import com.mpesa.tracker.ui.onboarding.PermissionRationaleScreen
+import com.mpesa.tracker.ui.theme.MpesaTrackerTheme
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
 
-    @Inject
-    lateinit var smsSyncService: SmsSyncService
-
-    @Inject
-    lateinit var categoryDao: CategoryDao
-    
-    @Inject
-    lateinit var subscriptionDao: SubscriptionDao
+    @Inject lateinit var smsSyncService: SmsSyncService
+    @Inject lateinit var categoryDao: CategoryDao
+    @Inject lateinit var subscriptionDao: SubscriptionDao
+    @Inject lateinit var userPreferences: UserPreferencesRepository
 
     private var hasPermissionState = mutableStateOf(false)
+    private var hasSyncedThisProcess = false
 
-    private val requestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            hasPermissionState.value = isGranted
-            if (isGranted) {
-                syncSms()
+    private val requestPermissionsLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            val smsGranted = permissions[Manifest.permission.READ_SMS] == true
+            hasPermissionState.value = smsGranted
+            if (smsGranted) {
+                syncSmsOnce()
             } else {
                 Toast.makeText(this, "SMS Permission Denied. Cannot read past transactions.", Toast.LENGTH_LONG).show()
             }
@@ -78,100 +64,94 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            MpesaTrackerTheme {
+            val themeMode by userPreferences.themeMode.collectAsState()
+            val dynamicColor by userPreferences.dynamicColorEnabled.collectAsState()
+            val appLockEnabled by userPreferences.appLockEnabled.collectAsState()
+
+            MpesaTrackerTheme(themeMode = themeMode, dynamicColor = dynamicColor) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    hasPermissionState.value = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
-                    
+                    hasPermissionState.value = ContextCompat.checkSelfPermission(
+                        this, Manifest.permission.READ_SMS
+                    ) == PackageManager.PERMISSION_GRANTED
+
                     if (hasPermissionState.value) {
-                        var isAuthenticated by remember { mutableStateOf(!BiometricPromptHelper.canAuthenticate(this@MainActivity)) }
-                        var currentScreen by remember { mutableStateOf<Screen>(Screen.Landing) }
+                        val needsAuth = appLockEnabled && BiometricPromptHelper.canAuthenticate(this@MainActivity)
+                        var isAuthenticated by remember { mutableStateOf(!needsAuth) }
 
                         val triggerBiometric = {
                             BiometricPromptHelper.showBiometricPrompt(
                                 activity = this@MainActivity,
-                                onSuccess = { isAuthenticated = true },
+                                title = "Unlock Biller",
+                                subtitle = "Verify your identity to access your finances",
+                                onSuccess = {
+                                    isAuthenticated = true
+                                    syncSmsOnce()
+                                },
                                 onError = { msg ->
                                     Toast.makeText(this@MainActivity, msg, Toast.LENGTH_SHORT).show()
                                 }
                             )
                         }
 
-                        // Trigger auth on first load if we need it
                         LaunchedEffect(Unit) {
-                            if (!isAuthenticated && BiometricPromptHelper.canAuthenticate(this@MainActivity)) {
+                            if (!isAuthenticated && needsAuth) {
                                 triggerBiometric()
+                            } else {
+                                syncSmsOnce()
                             }
-                            syncSms()
                         }
 
                         if (!isAuthenticated) {
-                            // Locked Screen UI
                             Column(
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier.fillMaxSize().padding(24.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Lock,
-                                    contentDescription = "Locked",
-                                    modifier = Modifier.size(80.dp),
-                                    tint = PrimaryGreen
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text("M-Pesa Tracker is Locked", fontSize = 20.sp, color = MaterialTheme.colorScheme.onBackground)
-                                Spacer(modifier = Modifier.height(32.dp))
-                                Button(
-                                    onClick = { triggerBiometric() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                                Box(
+                                    modifier = Modifier
+                                        .size(88.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primaryContainer),
+                                    contentAlignment = Alignment.Center
                                 ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Lock,
+                                        contentDescription = "Locked",
+                                        modifier = Modifier.size(40.dp),
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                                Spacer(Modifier.height(20.dp))
+                                Text("Biller is Locked", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Authenticate to view M-Pesa & bank activity",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(Modifier.height(28.dp))
+                                Button(onClick = triggerBiometric) {
                                     Text("Unlock")
                                 }
                             }
                         } else {
-                            // Authenticated: Show the real App
-                            when (currentScreen) {
-                                Screen.Landing -> {
-                                    com.mpesa.tracker.ui.onboarding.LandingScreen(
-                                        onNavigateToDashboard = { currentScreen = Screen.Dashboard },
-                                        onNavigateToTransactions = { currentScreen = Screen.Transactions() },
-                                        onNavigateToSubscriptions = { currentScreen = Screen.Subscriptions },
-                                        onNavigateToAnalytics = { currentScreen = Screen.Analytics }
-                                    )
-                                }
-                                Screen.Dashboard -> {
-                                    com.mpesa.tracker.ui.dashboard.DashboardScreen(
-                                        onNavigateBack = { currentScreen = Screen.Landing },
-                                        onNavigateToTransactions = { incomeOnly -> currentScreen = Screen.Transactions(incomeOnly = incomeOnly) }
-                                    )
-                                }
-                                Screen.Analytics -> {
-                                    com.mpesa.tracker.ui.analytics.AnalyticsScreen(
-                                        onNavigateBack = { currentScreen = Screen.Landing },
-                                        onNavigateToTransactions = { categoryId -> currentScreen = Screen.Transactions(categoryId) }
-                                    )
-                                }
-                                is Screen.Transactions -> {
-                                    val txScreen = currentScreen as Screen.Transactions
-                                    com.mpesa.tracker.ui.transactions.TransactionsScreen(
-                                        onNavigateBack = { currentScreen = Screen.Landing },
-                                        initialCategoryId = txScreen.categoryId,
-                                        initialIncomeOnly = txScreen.incomeOnly
-                                    )
-                                }
-                                Screen.Subscriptions -> {
-                                    com.mpesa.tracker.ui.subscriptions.SubscriptionsScreen(
-                                        onNavigateBack = { currentScreen = Screen.Landing }
-                                    )
-                                }
-                            }
+                            AppNavHost()
                         }
                     } else {
-                        com.mpesa.tracker.ui.onboarding.PermissionRationaleScreen(
+                        PermissionRationaleScreen(
                             onGrantPermissionClick = {
-                                requestPermissionLauncher.launch(Manifest.permission.READ_SMS)
+                                val permissions = mutableListOf(
+                                    Manifest.permission.READ_SMS,
+                                    Manifest.permission.RECEIVE_SMS
+                                ).apply {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        add(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                }.toTypedArray()
+                                requestPermissionsLauncher.launch(permissions)
                             }
                         )
                     }
@@ -180,33 +160,24 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    private fun syncSms() {
+    private fun syncSmsOnce() {
+        if (hasSyncedThisProcess) return
+        hasSyncedThisProcess = true
         lifecycleScope.launch {
             try {
-                // Failsafe: Re-seed categories if DB was wiped by a schema update
                 val existingCategories = categoryDao.getAllCategories().first()
                 if (existingCategories.isEmpty()) {
-                    Log.d("MainActivity", "Database Categories are empty! Seeding defaults...")
                     AppDatabaseCallback.starterCategories.forEach { categoryDao.insertCategory(it) }
                     AppDatabaseCallback.starterSubs.forEach { subscriptionDao.insertSubscription(it) }
                 }
 
                 val syncedCount = smsSyncService.syncHistoricMessages()
-                Log.d("MainActivity", "Synced $syncedCount messages.")
                 if (syncedCount > 0) {
-                     Toast.makeText(this@MainActivity, "Synced $syncedCount transactions", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Synced $syncedCount new transactions", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Failed to sync SMS or seed DB", e)
             }
         }
     }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
 }

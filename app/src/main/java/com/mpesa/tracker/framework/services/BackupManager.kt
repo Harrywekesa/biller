@@ -5,6 +5,7 @@ import android.os.Environment
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Log
+import com.mpesa.tracker.data.local.AppDatabase
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.FileInputStream
@@ -24,7 +25,8 @@ import javax.inject.Singleton
 
 @Singleton
 class BackupManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val database: AppDatabase
 ) {
 
     private companion object {
@@ -37,16 +39,10 @@ class BackupManager @Inject constructor(
         val keyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
         if (keyStore.containsAlias(KEY_ALIAS)) {
             val entry = keyStore.getEntry(KEY_ALIAS, null) as? KeyStore.SecretKeyEntry
-            if (entry != null) {
-                return entry.secretKey
-            }
+            if (entry != null) return entry.secretKey
         }
 
-        // Key doesn't exist, create it securely in Android KeyStore
-        val keyGenerator = KeyGenerator.getInstance(
-            KeyProperties.KEY_ALGORITHM_AES,
-            ANDROID_KEY_STORE
-        )
+        val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEY_STORE)
         val spec = KeyGenParameterSpec.Builder(
             KEY_ALIAS,
             KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
@@ -55,33 +51,32 @@ class BackupManager @Inject constructor(
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setKeySize(256)
             .build()
-            
+
         keyGenerator.init(spec)
         return keyGenerator.generateKey()
     }
 
     /**
-     * Creates a local, encrypted backup of the Room Database.
-     * Uses AES-GCM encryption with keys stored in the Android KeyStore.
+     * Checkpoints SQLite WAL to main DB file before creating an AES-GCM encrypted backup
+     * so zero uncommitted transactions are missed. Returns created File path or null.
      */
-    fun createLocalBackup(): Boolean {
-        try {
+    fun createLocalBackup(): File? {
+        return try {
             val dbName = "mpesa_tracker_db"
             val dbFile = context.getDatabasePath(dbName)
-            
             if (!dbFile.exists()) {
                 Log.e("BackupManager", "Database does not exist.")
-                return false
+                return null
             }
 
-            // Create a Backup Directory in external storage (or Documents)
-            val backupDir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "MpesaTrackerBackups")
-            if (!backupDir.exists()) {
-                backupDir.mkdirs()
-            }
+            // Flush WAL changes safely into mpesa_tracker_db before reading bytes
+            database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE)").use { it.moveToFirst() }
+
+            val backupDir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "BillerBackups")
+            if (!backupDir.exists()) backupDir.mkdirs()
 
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val backupFile = File(backupDir, "backup_$timestamp.enc") // Using .enc to mark it as encrypted
+            val backupFile = File(backupDir, "biller_backup_$timestamp.enc")
 
             val key = getOrCreateKey()
             val cipher = Cipher.getInstance(TRANSFORMATION)
@@ -89,80 +84,67 @@ class BackupManager @Inject constructor(
 
             FileOutputStream(backupFile).use { fos ->
                 val iv = cipher.iv
-                // Write IV length and IV value first
                 fos.write(iv.size)
                 fos.write(iv)
-                
                 CipherOutputStream(fos, cipher).use { cos ->
-                    FileInputStream(dbFile).use { fis ->
-                        fis.copyTo(cos)
-                    }
+                    FileInputStream(dbFile).use { fis -> fis.copyTo(cos) }
                 }
             }
 
-            Log.d("BackupManager", "Encrypted backup successful: ${backupFile.absolutePath}")
-            return true
-            
+            Log.d("BackupManager", "Encrypted backup created: ${backupFile.absolutePath}")
+            backupFile
         } catch (e: Exception) {
             Log.e("BackupManager", "Backup failed", e)
-            return false
+            null
         }
     }
 
-    /**
-     * Decrypts and restores a database backup, replacing the current active database.
-     */
+    fun listBackups(): List<File> {
+        val backupDir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "BillerBackups")
+        if (!backupDir.exists()) return emptyList()
+        return backupDir.listFiles { file -> file.extension == "enc" }
+            ?.sortedByDescending { it.lastModified() }
+            ?: emptyList()
+    }
+
     fun restoreBackup(backupFile: File): Boolean {
-        try {
+        return try {
             val dbName = "mpesa_tracker_db"
             val dbFile = context.getDatabasePath(dbName)
-            
-            if (!backupFile.exists()) {
-                Log.e("BackupManager", "Backup file does not exist.")
-                return false
-            }
+            if (!backupFile.exists()) return false
 
             val key = getOrCreateKey()
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            
+
             FileInputStream(backupFile).use { fis ->
                 val ivSize = fis.read()
-                if (ivSize <= 0 || ivSize > 100) {
-                    Log.e("BackupManager", "Invalid IV size in backup file.")
-                    return false
-                }
-                
+                if (ivSize <= 0 || ivSize > 100) return false
                 val iv = ByteArray(ivSize)
-                fis.read(iv)
-                
+                java.io.DataInputStream(fis).readFully(iv)
+
                 val spec = GCMParameterSpec(128, iv)
                 cipher.init(Cipher.DECRYPT_MODE, key, spec)
-                
+
                 val tempDbFile = File(context.cacheDir, "temp_restore.db")
-                
                 CipherInputStream(fis, cipher).use { cis ->
-                    FileOutputStream(tempDbFile).use { fos ->
-                        cis.copyTo(fos)
-                    }
+                    FileOutputStream(tempDbFile).use { fos -> cis.copyTo(fos) }
                 }
-                
-                // Replace original database file safely
-                if (dbFile.exists()) {
-                    dbFile.delete()
+                if (!tempDbFile.exists() || tempDbFile.length() == 0L) {
+                    tempDbFile.delete()
+                    return false
                 }
-                tempDbFile.renameTo(dbFile)
-                
-                // Clean up journal/shm/wal files to prevent corruption with the new db file
+
+                database.close()
+                tempDbFile.copyTo(dbFile, overwrite = true)
+                tempDbFile.delete()
                 File(dbFile.absolutePath + "-journal").delete()
                 File(dbFile.absolutePath + "-shm").delete()
                 File(dbFile.absolutePath + "-wal").delete()
             }
-            
-            Log.d("BackupManager", "Database successfully restored from encrypted backup.")
-            return true
+            true
         } catch (e: Exception) {
             Log.e("BackupManager", "Restore failed", e)
-            return false
+            false
         }
     }
 }

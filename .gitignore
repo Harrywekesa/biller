@@ -1,0 +1,36 @@
+# Android generated
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+*.keystore
+
+# App build outputs  
+app/build/
+app/schemas/
+
+# Debug/temp files committed by mistake
+logcat.txt
+compile_log.txt
+err*.txt
+errors*.txt
+build_output*.txt
+build_release_output*.txt
+plain_logs.txt
+test_out.txt
+output.txt
+parsed.txt
+compile.log
+true_errors.txt
+compile_out*.txt
+test_regex*.py
+test_regex*.kts
+train_mpesa_model.py
+
+# local.properties (contains API keys and signing credentials — NEVER commit)
+local.properties
