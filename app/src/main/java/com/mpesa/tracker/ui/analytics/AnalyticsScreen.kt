@@ -1,10 +1,13 @@
 package com.mpesa.tracker.ui.analytics
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -22,9 +25,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -272,6 +280,12 @@ fun AnalyticsScreen(
 
                 // Donut Chart + Fees & Transfers Summary
                 item {
+                    var selectedSliceIdx by remember(expenses) { mutableStateOf<Int?>(null) }
+                    val selectedExpense = selectedSliceIdx?.let { expenses.getOrNull(it) }
+                    val fmt = remember { NumberFormat.getNumberInstance(Locale.US).apply { minimumFractionDigits = 2; maximumFractionDigits = 2 } }
+                    val intFmt = remember { NumberFormat.getNumberInstance(Locale.US).apply { maximumFractionDigits = 0 } }
+                    val totalSpend = expenses.sumOf { it.totalAmount }
+
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(20.dp),
@@ -285,14 +299,70 @@ fun AnalyticsScreen(
                             if (expenses.isNotEmpty()) {
                                 SpendingDonutChart(
                                     expenses = expenses,
+                                    selectedIndex = selectedSliceIdx,
+                                    onSelectSlice = { idx ->
+                                        selectedSliceIdx = if (selectedSliceIdx == idx) null else idx
+                                    },
                                     isPrivacyMode = isPrivacyMode,
-                                    modifier = Modifier.fillMaxWidth().height(185.dp)
+                                    modifier = Modifier.fillMaxWidth().height(195.dp)
                                 )
+
+                                AnimatedVisibility(visible = selectedExpense != null) {
+                                    selectedExpense?.let { sel ->
+                                        val share = if (totalSpend > 0) ((sel.totalAmount / totalSpend) * 100.0).toInt() else 0
+                                        val selColor = parseCategoryColor(sel.colorCode, scheme.primary)
+                                        val catEntity = categories.find { it.id == sel.categoryId }
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = selColor.copy(alpha = 0.12f),
+                                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Icon(
+                                                        categoryIconFor(catEntity?.iconName),
+                                                        null,
+                                                        tint = selColor,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Column {
+                                                        Text(
+                                                            sel.categoryName ?: "Uncategorized",
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 13.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        Text(
+                                                            if (isPrivacyMode) "$share% of spend"
+                                                            else "Ksh ${intFmt.format(sel.totalAmount)} · $share% of spend",
+                                                            fontSize = 11.sp,
+                                                            color = scheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+                                                TextButton(
+                                                    onClick = { onNavigateToTransactions(sel.categoryId ?: -1) },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp)
+                                                ) {
+                                                    Text("View Tx →", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             } else {
                                 Text("No expense spend recorded in ${selectedPeriod.displayName}", color = scheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 20.dp))
                             }
 
-                            val fmt = remember { NumberFormat.getNumberInstance(Locale.US).apply { minimumFractionDigits = 2; maximumFractionDigits = 2 } }
                             if ((totalFees ?: 0.0) > 0 || (totalTransfers ?: 0.0) > 0) {
                                 Spacer(Modifier.height(10.dp))
                                 HorizontalDivider(color = scheme.outlineVariant)
@@ -512,8 +582,13 @@ private fun MonthlyComparisonCard(points: List<MonthlyComparisonPoint>, isPrivac
     val maxVal = points.maxOfOrNull { maxOf(it.income, it.expense) }?.coerceAtLeast(1.0) ?: 1.0
     val inFmt = remember { SimpleDateFormat("yyyy-MM", Locale.US) }
     val outFmt = remember { SimpleDateFormat("MMM", Locale.US) }
+    val fullFmt = remember { SimpleDateFormat("MMM yyyy", Locale.US) }
+    val numFmt = remember { NumberFormat.getNumberInstance(Locale.US).apply { maximumFractionDigits = 0 } }
     val semantic = BillerTheme.colors
     val scheme = MaterialTheme.colorScheme
+
+    var selectedIdx by remember(points) { mutableIntStateOf(points.lastIndex) }
+    val selectedPoint = points.getOrNull(selectedIdx)
 
     val momDelta: Int? = if (points.size >= 2) {
         val prev = points[points.size - 2].expense
@@ -535,7 +610,7 @@ private fun MonthlyComparisonCard(points: List<MonthlyComparisonPoint>, isPrivac
             ) {
                 Column {
                     Text("Monthly Cashflow", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("True Income vs True Spend", fontSize = 11.sp, color = scheme.onSurfaceVariant)
+                    Text("True Income vs True Spend (tap month)", fontSize = 11.sp, color = scheme.onSurfaceVariant)
                 }
                 if (momDelta != null) {
                     val isDown = momDelta <= 0
@@ -559,17 +634,32 @@ private fun MonthlyComparisonCard(points: List<MonthlyComparisonPoint>, isPrivac
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.Bottom
             ) {
-                points.forEach { pt ->
+                points.forEachIndexed { idx, pt ->
                     val incRatio = (pt.income / maxVal).toFloat().coerceIn(0.04f, 1f)
                     val expRatio = (pt.expense / maxVal).toFloat().coerceIn(0.04f, 1f)
                     val label = try {
                         inFmt.parse(pt.monthKey)?.let { outFmt.format(it) } ?: pt.monthKey
                     } catch (_: Exception) { pt.monthKey }
+                    val isSel = idx == selectedIdx
 
                     val expLabel = if (isPrivacyMode) "••" else if (pt.expense >= 1000) "${String.format(Locale.US, "%.1f", pt.expense / 1000)}k" else "${pt.expense.toInt()}"
 
-                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(expLabel, fontSize = 10.sp, color = scheme.onSurfaceVariant, maxLines = 1)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isSel) scheme.surfaceVariant.copy(alpha = 0.5f) else Color.Transparent)
+                            .clickable { selectedIdx = idx }
+                            .padding(vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            expLabel,
+                            fontSize = 10.sp,
+                            color = if (isSel) scheme.onSurface else scheme.onSurfaceVariant,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1
+                        )
                         Spacer(Modifier.height(4.dp))
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -578,20 +668,59 @@ private fun MonthlyComparisonCard(points: List<MonthlyComparisonPoint>, isPrivac
                             Box(
                                 modifier = Modifier
                                     .width(14.dp)
-                                    .height((85f * incRatio).dp)
+                                    .height((80f * incRatio).dp)
                                     .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
-                                    .background(semantic.income.copy(alpha = 0.85f))
+                                    .background(semantic.income.copy(alpha = if (isSel) 1f else 0.6f))
                             )
                             Box(
                                 modifier = Modifier
                                     .width(14.dp)
-                                    .height((85f * expRatio).dp)
+                                    .height((80f * expRatio).dp)
                                     .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
-                                    .background(semantic.expense.copy(alpha = 0.85f))
+                                    .background(semantic.expense.copy(alpha = if (isSel) 1f else 0.6f))
                             )
                         }
                         Spacer(Modifier.height(6.dp))
-                        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            label,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSel) scheme.primary else scheme.onSurface
+                        )
+                    }
+                }
+            }
+
+            if (selectedPoint != null) {
+                val monthTitle = try {
+                    inFmt.parse(selectedPoint.monthKey)?.let { fullFmt.format(it) } ?: selectedPoint.monthKey
+                } catch (_: Exception) { selectedPoint.monthKey }
+                val net = selectedPoint.income - selectedPoint.expense
+                Spacer(Modifier.height(10.dp))
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = scheme.surfaceVariant.copy(alpha = 0.45f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(monthTitle, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (isPrivacyMode) "In •••• · Out ••••"
+                            else "+${numFmt.format(selectedPoint.income)} / -${numFmt.format(selectedPoint.expense)}",
+                            fontSize = 11.sp,
+                            color = scheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (isPrivacyMode) "Net ••••"
+                            else "Net ${if (net >= 0) "+" else "-"}${numFmt.format(kotlin.math.abs(net))}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (net >= 0) semantic.income else semantic.expense
+                        )
                     }
                 }
             }
@@ -602,12 +731,20 @@ private fun MonthlyComparisonCard(points: List<MonthlyComparisonPoint>, isPrivac
 @Composable
 private fun InteractiveDailySpendCard(dailySpend: List<DailySpend>, isPrivacyMode: Boolean) {
     var selectedIdx by remember(dailySpend) { mutableIntStateOf(dailySpend.lastIndex) }
+    var chartWidthPx by remember { mutableFloatStateOf(1f) }
     val selectedDay = dailySpend.getOrNull(selectedIdx)
     val peakDay = dailySpend.maxByOrNull { it.totalAmount }
     val avgDaily = if (dailySpend.isNotEmpty()) dailySpend.sumOf { it.totalAmount } / dailySpend.size else 0.0
     val fmt = remember { NumberFormat.getNumberInstance(Locale.US).apply { maximumFractionDigits = 0 } }
     val scheme = MaterialTheme.colorScheme
+    val semantic = BillerTheme.colors
     val maxSpend = dailySpend.maxOfOrNull { it.totalAmount }?.coerceAtLeast(1.0) ?: 1.0
+
+    fun indexForOffsetX(x: Float): Int {
+        if (dailySpend.isEmpty() || chartWidthPx <= 0f) return 0
+        val ratio = (x / chartWidthPx).coerceIn(0f, 0.9999f)
+        return (ratio * dailySpend.size).toInt().coerceIn(0, dailySpend.lastIndex)
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -615,7 +752,7 @@ private fun InteractiveDailySpendCard(dailySpend: List<DailySpend>, isPrivacyMod
         colors = CardDefaults.cardColors(containerColor = scheme.surface),
         border = BorderStroke(1.dp, scheme.outlineVariant)
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -643,33 +780,89 @@ private fun InteractiveDailySpendCard(dailySpend: List<DailySpend>, isPrivacyMod
                 }
             }
 
-            // Interactive bar row (tap any bar to inspect exact day)
-            Row(
-                modifier = Modifier.fillMaxWidth().height(95.dp),
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                verticalAlignment = Alignment.Bottom
-            ) {
-                dailySpend.forEachIndexed { index, item ->
-                    val ratio = (item.totalAmount / maxSpend).toFloat().coerceIn(0.06f, 1f)
-                    val isSel = index == selectedIdx
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clickable { selectedIdx = index },
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .fillMaxHeight(ratio)
-                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                .background(if (isSel) scheme.primary else scheme.primary.copy(alpha = 0.35f))
+            // Finger-scrubbable bar chart with dashed Average line
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(108.dp)
+                    .onSizeChanged { chartWidthPx = it.width.toFloat().coerceAtLeast(1f) }
+                    .pointerInput(dailySpend) {
+                        detectTapGestures { offset ->
+                            selectedIdx = indexForOffsetX(offset.x)
+                        }
+                    }
+                    .pointerInput(dailySpend) {
+                        detectHorizontalDragGestures(
+                            onDragStart = { offset -> selectedIdx = indexForOffsetX(offset.x) },
+                            onHorizontalDrag = { change, _ ->
+                                change.consume()
+                                selectedIdx = indexForOffsetX(change.position.x)
+                            }
                         )
+                    }
+            ) {
+                // Background average dashed line
+                val avgFraction = (avgDaily / maxSpend).toFloat().coerceIn(0.05f, 1f)
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val yAvg = size.height * (1f - avgFraction)
+                    drawLine(
+                        color = semantic.warning.copy(alpha = 0.65f),
+                        start = Offset(0f, yAvg),
+                        end = Offset(size.width, yAvg),
+                        strokeWidth = 2.5f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    dailySpend.forEachIndexed { index, item ->
+                        val ratio = (item.totalAmount / maxSpend).toFloat().coerceIn(0.06f, 1f)
+                        val isSel = index == selectedIdx
+                        Column(
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            verticalArrangement = Arrangement.Bottom,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            if (isSel) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(bottom = 2.dp)
+                                        .size(5.dp)
+                                        .clip(CircleShape)
+                                        .background(scheme.primary)
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .fillMaxHeight(ratio)
+                                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                    .background(
+                                        when {
+                                            isSel -> scheme.primary
+                                            item.totalAmount > avgDaily -> scheme.primary.copy(alpha = 0.5f)
+                                            else -> scheme.primary.copy(alpha = 0.25f)
+                                        }
+                                    )
+                            )
+                        }
                     }
                 }
             }
-            Text("Tap any bar to inspect date & amount", fontSize = 10.sp, color = scheme.onSurfaceVariant)
+
+            // Axis labels + interaction hint
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(dailySpend.first().dateString.takeLast(5), fontSize = 10.sp, color = scheme.onSurfaceVariant)
+                Text("Drag or tap bars to scrub · Dashed = Avg", fontSize = 10.sp, color = scheme.onSurfaceVariant)
+                Text(dailySpend.last().dateString.takeLast(5), fontSize = 10.sp, color = scheme.onSurfaceVariant)
+            }
         }
     }
 }
@@ -677,38 +870,111 @@ private fun InteractiveDailySpendCard(dailySpend: List<DailySpend>, isPrivacyMod
 @Composable
 private fun SpendingDonutChart(
     expenses: List<CategoryExpense>,
+    selectedIndex: Int?,
+    onSelectSlice: (Int) -> Unit,
     isPrivacyMode: Boolean,
     modifier: Modifier = Modifier
 ) {
     val totalSpend = expenses.sumOf { it.totalAmount }
     val scheme = MaterialTheme.colorScheme
-    val fmt = NumberFormat.getNumberInstance(Locale.US).apply { maximumFractionDigits = 0 }
+    val fmt = remember { NumberFormat.getNumberInstance(Locale.US).apply { maximumFractionDigits = 0 } }
+    val selectedExpense = selectedIndex?.let { expenses.getOrNull(it) }
+
+    val sliceAngles = remember(expenses, totalSpend) {
+        var cursor = -90f
+        expenses.map { expense ->
+            val sweep = if (totalSpend > 0) ((expense.totalAmount / totalSpend) * 360f).toFloat() else 0f
+            val start = cursor
+            cursor += sweep
+            start to sweep
+        }
+    }
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Canvas(modifier = Modifier.size(150.dp)) {
-            var startAngle = -90f
-            expenses.forEach { expense ->
-                val sweep = if (totalSpend > 0) ((expense.totalAmount / totalSpend) * 360f).toFloat() else 0f
-                val sliceColor = parseCategoryColor(expense.colorCode, Color.Gray)
+        Canvas(
+            modifier = Modifier
+                .size(164.dp)
+                .pointerInput(sliceAngles) {
+                    detectTapGestures { offset ->
+                        val cx = size.width / 2f
+                        val cy = size.height / 2f
+                        val dx = offset.x - cx
+                        val dy = offset.y - cy
+                        val dist = kotlin.math.hypot(dx, dy)
+                        val minR = size.width * 0.22f
+                        val maxR = size.width * 0.56f
+                        if (dist in minR..maxR) {
+                            var deg = Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat() + 90f
+                            if (deg < 0f) deg += 360f
+                            val hitIdx = sliceAngles.indexOfFirst { (start, sweep) ->
+                                val relStart = (start + 90f)
+                                deg >= relStart && deg < (relStart + sweep)
+                            }
+                            if (hitIdx != -1) {
+                                onSelectSlice(hitIdx)
+                            }
+                        }
+                    }
+                }
+        ) {
+            val basePad = 14f
+            sliceAngles.forEachIndexed { idx, (startAngle, sweep) ->
+                val expense = expenses[idx]
+                val rawColor = parseCategoryColor(expense.colorCode, Color.Gray)
+                val isSelected = selectedIndex == idx
+                val sliceColor = when {
+                    selectedIndex == null || isSelected -> rawColor
+                    else -> rawColor.copy(alpha = 0.30f)
+                }
+                val gap = if (expenses.size <= 1) 0f else minOf(2.5f, sweep * 0.25f)
+                val drawSweep = (sweep - gap).coerceAtLeast(1.2f)
+                val strokeW = if (isSelected) 44f else 30f
+                val inset = if (isSelected) basePad - 5f else basePad
+
                 drawArc(
                     color = sliceColor,
                     startAngle = startAngle,
-                    sweepAngle = (sweep - 2f).coerceAtLeast(1f),
+                    sweepAngle = drawSweep,
                     useCenter = false,
-                    topLeft = Offset.Zero,
-                    size = Size(size.width, size.height),
-                    style = Stroke(width = 34f)
+                    topLeft = Offset(inset, inset),
+                    size = Size(size.minDimension - inset * 2, size.minDimension - inset * 2),
+                    style = Stroke(width = strokeW, cap = StrokeCap.Butt)
                 )
-                startAngle += sweep
             }
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("TRUE SPEND", color = scheme.onSurfaceVariant, fontSize = 10.sp, letterSpacing = 0.8.sp)
-            Text(
-                text = if (isPrivacyMode) "Ksh ••••••" else "Ksh ${fmt.format(totalSpend)}",
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 17.sp
-            )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(105.dp)
+        ) {
+            if (selectedExpense != null) {
+                val share = if (totalSpend > 0) ((selectedExpense.totalAmount / totalSpend) * 100.0).toInt() else 0
+                val selColor = parseCategoryColor(selectedExpense.colorCode, scheme.primary)
+                Text(
+                    text = (selectedExpense.categoryName ?: "Other").uppercase(),
+                    color = selColor,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.4.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = if (isPrivacyMode) "Ksh ••••" else "Ksh ${fmt.format(selectedExpense.totalAmount)}",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp,
+                    maxLines = 1
+                )
+                Text("$share% share", color = scheme.onSurfaceVariant, fontSize = 10.sp)
+            } else {
+                Text("TRUE SPEND", color = scheme.onSurfaceVariant, fontSize = 10.sp, letterSpacing = 0.8.sp)
+                Text(
+                    text = if (isPrivacyMode) "Ksh ••••••" else "Ksh ${fmt.format(totalSpend)}",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.sp
+                )
+                Text("Tap slice", color = scheme.onSurfaceVariant.copy(alpha = 0.7f), fontSize = 9.sp)
+            }
         }
     }
 }

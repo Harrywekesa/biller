@@ -37,10 +37,13 @@ import com.mpesa.tracker.data.local.entities.CategoryEntity
 import com.mpesa.tracker.data.local.entities.TransactionEntity
 import com.mpesa.tracker.data.local.entities.TransactionNature
 import com.mpesa.tracker.data.local.entities.TransactionType
+import com.mpesa.tracker.domain.dictionary.BusinessDictionary
 import com.mpesa.tracker.domain.parser.AccountSource
 import com.mpesa.tracker.ui.theme.BillerTheme
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 fun accountSourceLabel(sourceName: String): AccountSource = AccountSource.fromName(sourceName)
@@ -523,8 +526,20 @@ fun TransactionDetailBottomSheet(
                     }
 
                     DetailRow("Date & Time", dateStr)
-                    if (!transaction.recipientNumber.isNullOrBlank()) DetailRow("Account / Phone", transaction.recipientNumber)
-                    if (!transaction.transferGroupRef.isNullOrBlank()) DetailRow("Linked Transfer Ref", transaction.transferGroupRef, semantic.transfer)
+                    if (!transaction.recipientNumber.isNullOrBlank()) {
+                        DetailRow("Account / Till / Phone", transaction.recipientNumber)
+                        BusinessDictionary.lookupCode(transaction.recipientNumber)?.let { reg ->
+                            DetailRow("Paybill/Till Registry", "${reg.merchantName} (${reg.categoryName})", scheme.primary)
+                        }
+                    }
+                    if (!transaction.linkedReceiptNumber.isNullOrBlank() && nature == TransactionNature.REVERSAL) {
+                        DetailRow("Reversed Receipt Ref", transaction.linkedReceiptNumber, scheme.outline)
+                    }
+                    if (!transaction.transferGroupRef.isNullOrBlank()) {
+                        val refLabel = if (nature == TransactionNature.REVERSAL) "Reversed By Receipt" else "Linked Transfer Ref"
+                        val refColor = if (nature == TransactionNature.REVERSAL) scheme.outline else semantic.transfer
+                        DetailRow(refLabel, transaction.transferGroupRef, refColor)
+                    }
                     if (transaction.balance != null) {
                         val balLabel = if (transaction.type == TransactionType.FULIZA_DRAW) "Fuliza Outstanding" else "${source.shortLabel} Balance"
                         DetailRow(balLabel, "Ksh ${formatter.format(transaction.balance)}")
@@ -760,17 +775,65 @@ fun AddManualTransactionSheet(
         nature: TransactionNature,
         source: AccountSource,
         categoryId: Int?,
-        note: String?
+        note: String?,
+        dateTimestamp: Long,
+        businessCode: String?
     ) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var merchant by remember { mutableStateOf("") }
+    var businessCode by remember { mutableStateOf("") }
     var amountText by remember { mutableStateOf("") }
     var feeText by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var nature by remember { mutableStateOf(TransactionNature.EXPENSE) }
     var source by remember { mutableStateOf(AccountSource.CASH) }
     var selectedCategoryId by remember { mutableStateOf(categories.firstOrNull()?.id) }
+
+    val now = remember { System.currentTimeMillis() }
+    var selectedDateTimestamp by remember { mutableLongStateOf(now) }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    val dateFormatter = remember { SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault()) }
+
+    val registrySuggestions = remember(businessCode, merchant) {
+        val query = when {
+            businessCode.isNotBlank() -> businessCode
+            merchant.length >= 2 -> merchant
+            else -> ""
+        }
+        if (query.isBlank()) emptyList() else BusinessDictionary.searchRegistry(query, limit = 6)
+    }
+
+    if (showDatePicker) {
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDateTimestamp)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let { chosenUtcMidnight ->
+                        val utcCal = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+                            timeInMillis = chosenUtcMidnight
+                        }
+                        val localCal = Calendar.getInstance().apply {
+                            set(
+                                utcCal.get(Calendar.YEAR),
+                                utcCal.get(Calendar.MONTH),
+                                utcCal.get(Calendar.DAY_OF_MONTH)
+                            )
+                        }
+                        selectedDateTimestamp = localCal.timeInMillis
+                    }
+                    showDatePicker = false
+                }) { Text("Select") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = pickerState)
+        }
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
@@ -802,13 +865,75 @@ fun AddManualTransactionSheet(
                 }
             }
 
-            OutlinedTextField(
-                value = merchant,
-                onValueChange = { merchant = it },
-                label = { Text(if (nature == TransactionNature.INCOME) "Source / Sender" else "Merchant / Description") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+            // Quick date selector
+            Text(
+                "Date: ${dateFormatter.format(Date(selectedDateTimestamp))}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            val yesterdayTs = remember(now) { now - 24L * 60 * 60 * 1000L }
+            val isTodayOrYesterday = dateFormatter.format(Date(selectedDateTimestamp)) in setOf(
+                dateFormatter.format(Date(now)),
+                dateFormatter.format(Date(yesterdayTs))
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = dateFormatter.format(Date(selectedDateTimestamp)) == dateFormatter.format(Date(now)),
+                    onClick = { selectedDateTimestamp = now },
+                    label = { Text("Today") }
+                )
+                FilterChip(
+                    selected = dateFormatter.format(Date(selectedDateTimestamp)) == dateFormatter.format(Date(yesterdayTs)),
+                    onClick = { selectedDateTimestamp = yesterdayTs },
+                    label = { Text("Yesterday") }
+                )
+                AssistChip(
+                    onClick = { showDatePicker = true },
+                    leadingIcon = { Icon(Icons.Filled.CalendarToday, null, modifier = Modifier.size(15.dp)) },
+                    label = {
+                        Text(if (isTodayOrYesterday) "Pick Date" else dateFormatter.format(Date(selectedDateTimestamp)))
+                    }
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = merchant,
+                    onValueChange = { merchant = it },
+                    label = { Text(if (nature == TransactionNature.INCOME) "Source / Sender" else "Merchant / Item") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1.4f)
+                )
+                OutlinedTextField(
+                    value = businessCode,
+                    onValueChange = { businessCode = it.trim() },
+                    label = { Text("Till / Paybill") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            if (registrySuggestions.isNotEmpty()) {
+                Text(
+                    "Paybill / Till Suggestions (tap to fill):",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(registrySuggestions, key = { it.code }) { entry ->
+                        AssistChip(
+                            onClick = {
+                                merchant = entry.merchantName
+                                businessCode = entry.code
+                                categories.firstOrNull { it.name.equals(entry.categoryName, ignoreCase = true) }?.let {
+                                    selectedCategoryId = it.id
+                                }
+                            },
+                            label = { Text("${entry.code} · ${entry.merchantName}") }
+                        )
+                    }
+                }
+            }
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
@@ -873,7 +998,9 @@ fun AddManualTransactionSheet(
                             nature,
                             source,
                             if (nature == TransactionNature.EXPENSE) selectedCategoryId else null,
-                            note.trim().takeIf { it.isNotEmpty() }
+                            note.trim().takeIf { it.isNotEmpty() },
+                            selectedDateTimestamp,
+                            businessCode.trim().takeIf { it.isNotEmpty() }
                         )
                     }
                 },

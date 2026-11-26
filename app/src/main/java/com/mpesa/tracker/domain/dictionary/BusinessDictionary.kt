@@ -1,11 +1,21 @@
 package com.mpesa.tracker.domain.dictionary
 
+data class PaybillRegistryEntry(
+    val code: String,
+    val merchantName: String,
+    val categoryName: String
+)
+
 /**
- * A comprehensive dictionary of Kenyan M-Pesa merchants, Paybill numbers, and Till numbers
- * mapped to their spending categories.
+ * Kenyan Paybill / Till registry and deterministic merchant dictionary mapped to
+ * the app's seeded spending categories.
  *
- * Category names MUST match exactly what is seeded in AppDatabaseCallback.starterCategories.
- * Current valid categories:
+ * Lookup order:
+ * 1) Exact Paybill / Till code lookup via [lookupCode]
+ * 2) Exact or partial normalized merchant name matching
+ * 3) Inline 5-8 digit Paybill/Till shortcode extraction from recipient text
+ *
+ * Category names MUST match what is seeded in AppDatabaseCallback.starterCategories:
  *   - "Groceries & Food"
  *   - "Utilities (Water, Power)"
  *   - "Transport & Fuel"
@@ -19,83 +29,110 @@ package com.mpesa.tracker.domain.dictionary
  */
 object BusinessDictionary {
 
-    // ── PAYBILL NUMBERS ──────────────────────────────────────────────────────
+    // ── PAYBILL / TILL REGISTRY ───────────────────────────────────────────────
     // Source: Safaricom official Paybill directory + common Kenyan services
 
-    private val paybillMappings = mapOf(
+    private val registryEntries: List<PaybillRegistryEntry> = listOf(
         // Utilities — Power
-        "888888" to "Utilities (Water, Power)", // KPLC Prepaid
-        "888880" to "Utilities (Water, Power)", // KPLC Postpaid
-        "880100" to "Utilities (Water, Power)", // Kenya Power (alternative)
+        PaybillRegistryEntry("888888", "KPLC Prepaid", "Utilities (Water, Power)"),
+        PaybillRegistryEntry("888880", "KPLC Postpaid", "Utilities (Water, Power)"),
+        PaybillRegistryEntry("880100", "Kenya Power", "Utilities (Water, Power)"),
 
         // Utilities — Water
-        "247247" to "Utilities (Water, Power)", // Nairobi Water & Sewerage
-        "444400" to "Utilities (Water, Power)", // Mombasa Water
-        "326326" to "Utilities (Water, Power)", // NWSC Water
+        PaybillRegistryEntry("444000", "Nairobi Water", "Utilities (Water, Power)"),
+        PaybillRegistryEntry("444400", "Mombasa Water", "Utilities (Water, Power)"),
+        PaybillRegistryEntry("326326", "NWSC Water", "Utilities (Water, Power)"),
 
-        // Utilities — Internet / TV
-        "200999" to "Subscriptions",  // Zuku Fiber
-        "400400" to "Subscriptions",  // Faiba Home Internet (JTL)
-        "325325" to "Subscriptions",  // DSTV
-        "290290" to "Subscriptions",  // Showmax
-        "249249" to "Subscriptions",  // StarTimes
+        // Utilities — Internet / TV / Streaming
+        PaybillRegistryEntry("200999", "Zuku Fiber", "Subscriptions"),
+        PaybillRegistryEntry("400400", "Faiba Home (JTL)", "Subscriptions"),
+        PaybillRegistryEntry("325325", "DStv", "Subscriptions"),
+        PaybillRegistryEntry("290290", "Showmax", "Subscriptions"),
+        PaybillRegistryEntry("249249", "StarTimes", "Subscriptions"),
 
         // Safaricom Services
-        "999991" to "Airtime & Data", // Safaricom Postpay
-        "333300" to "Airtime & Data", // Safaricom Data Bundles Paybill
-        "272727" to "Airtime & Data", // Safaricom Home Fibre
+        PaybillRegistryEntry("999991", "Safaricom Postpay", "Airtime & Data"),
+        PaybillRegistryEntry("333300", "Safaricom Data Bundles", "Airtime & Data"),
+        PaybillRegistryEntry("272727", "Safaricom Home Fibre", "Subscriptions"),
+        PaybillRegistryEntry("150", "Safaricom Care", "Airtime & Data"),
 
         // Banking & Financial
-        "522522" to "Business/Till",  // Equity Bank
-        "100100" to "Business/Till",  // KCB Bank
-        "522200" to "Business/Till",  // Standard Chartered
-        "700800" to "Business/Till",  // Cooperative Bank
-        "329329" to "Business/Till",  // Family Bank
-        "400200" to "Business/Till",  // M-Shwari (KCB-MPESA)
-        "552100" to "Business/Till",  // HF Group
-        "912200" to "Business/Till",  // NCBA Loop
+        PaybillRegistryEntry("247247", "Equity Bank (Eazzy)", "Business/Till"),
+        PaybillRegistryEntry("522522", "KCB Bank", "Business/Till"),
+        PaybillRegistryEntry("542542", "I&M Bank", "Business/Till"),
+        PaybillRegistryEntry("400200", "Co-operative Bank", "Business/Till"),
+        PaybillRegistryEntry("303030", "Absa Bank / KNEC", "Business/Till"),
+        PaybillRegistryEntry("880100", "NCBA Bank", "Business/Till"),
+        PaybillRegistryEntry("329329", "Standard Chartered", "Business/Till"),
+        PaybillRegistryEntry("222111", "Family Bank", "Business/Till"),
+        PaybillRegistryEntry("552100", "HF Group", "Business/Till"),
+        PaybillRegistryEntry("912200", "NCBA Loop", "Business/Till"),
+        PaybillRegistryEntry("516600", "DTB Bank", "Business/Till"),
+        PaybillRegistryEntry("600100", "Stanbic Bank", "Business/Till"),
 
         // Insurance
-        "223300" to "Business/Till",  // Britam Insurance
-        "510300" to "Business/Till",  // Jubilee Insurance
-        "327600" to "Business/Till",  // UAP Insurance
-        "911911" to "Business/Till",  // AAR Insurance
+        PaybillRegistryEntry("223300", "Britam Insurance", "Business/Till"),
+        PaybillRegistryEntry("510300", "Jubilee Insurance", "Business/Till"),
+        PaybillRegistryEntry("327600", "UAP Old Mutual", "Business/Till"),
+        PaybillRegistryEntry("911911", "AAR Insurance", "Business/Till"),
 
         // Government / NTSA / KRA
-        "222222" to "Business/Till",  // eCitizen (Government services)
-        "572572" to "Business/Till",  // NTSA (Driving licence, etc.)
-        "572000" to "Business/Till",  // KRA (Tax payments)
-        "000000" to "Business/Till",  // HELB (Student loans)
+        PaybillRegistryEntry("222222", "eCitizen", "Business/Till"),
+        PaybillRegistryEntry("572572", "NTSA", "Business/Till"),
+        PaybillRegistryEntry("572000", "KRA iTax", "Business/Till"),
+        PaybillRegistryEntry("200800", "HELB", "Business/Till"),
+        PaybillRegistryEntry("200222", "SHA / NHIF", "Business/Till"),
 
-        // Hospitals
-        "800200" to "Business/Till",  // Aga Khan Hospital
-        "520200" to "Business/Till",  // Nairobi Hospital
-        "501501" to "Business/Till",  // Kenyatta National Hospital
-        "215215" to "Business/Till",  // MP Shah Hospital
+        // Hospitals & Healthcare
+        PaybillRegistryEntry("800200", "Aga Khan Hospital", "Business/Till"),
+        PaybillRegistryEntry("520200", "Nairobi Hospital", "Business/Till"),
+        PaybillRegistryEntry("501501", "Kenyatta National Hospital", "Business/Till"),
+        PaybillRegistryEntry("215215", "MP Shah Hospital", "Business/Till"),
 
         // Supermarkets / Retail
-        "290700" to "Groceries & Food", // Naivas Online
-        "851852" to "Groceries & Food", // Carrefour
+        PaybillRegistryEntry("290700", "Naivas Online", "Groceries & Food"),
+        PaybillRegistryEntry("851852", "Carrefour Kenya", "Groceries & Food"),
 
-        // Fuel / Petrol Stations (Paybill)
-        "606060" to "Transport & Fuel", // Shell/Vivo Energy Pay
-        "350350" to "Transport & Fuel", // TotalEnergies Paybill
-        "200200" to "Transport & Fuel", // Rubis Energy Paybill
+        // Fuel / Petrol Stations
+        PaybillRegistryEntry("606060", "Shell / Vivo Energy", "Transport & Fuel"),
+        PaybillRegistryEntry("350350", "TotalEnergies", "Transport & Fuel"),
+        PaybillRegistryEntry("200200", "Rubis Energy", "Transport & Fuel"),
 
         // Ride-hailing / Transport
-        "310300" to "Transport & Fuel", // Little Cab Pay
-        "891300" to "Transport & Fuel", // Bolt Business
+        PaybillRegistryEntry("310300", "Little Cab", "Transport & Fuel"),
+        PaybillRegistryEntry("891300", "Bolt Business", "Transport & Fuel"),
 
         // Education
-        "303030" to "Business/Till",  // KNEC (Exam fees)
-        "500600" to "Business/Till",  // University of Nairobi fees
-        "220220" to "Business/Till",  // Strathmore University
-        "247100" to "Business/Till",  // USIU Africa
+        PaybillRegistryEntry("500600", "University of Nairobi", "Business/Till"),
+        PaybillRegistryEntry("220220", "Strathmore University", "Business/Till"),
+        PaybillRegistryEntry("247100", "USIU Africa", "Business/Till"),
 
-        // Airtime Top-Up (Rival networks)
-        "601600" to "Airtime & Data", // Airtel Money Transfer
-        "444123" to "Airtime & Data"  // Telkom Kenya
+        // Telecom / Other
+        PaybillRegistryEntry("601600", "Airtel Money", "Airtime & Data"),
+        PaybillRegistryEntry("444123", "Telkom Kenya", "Airtime & Data")
     )
+
+    private val codeIndex: Map<String, PaybillRegistryEntry> =
+        registryEntries.associateBy { normalizeCode(it.code) }
+
+    private fun normalizeCode(code: String): String = code.trim().replace(" ", "")
+
+    fun getAllRegistryEntries(): List<PaybillRegistryEntry> = registryEntries
+
+    fun lookupCode(code: String?): PaybillRegistryEntry? {
+        if (code.isNullOrBlank()) return null
+        return codeIndex[normalizeCode(code)]
+    }
+
+    fun searchRegistry(query: String, limit: Int = 25): List<PaybillRegistryEntry> {
+        val q = query.trim()
+        if (q.isEmpty()) return registryEntries.take(limit)
+        return registryEntries.filter { entry ->
+            entry.code.contains(q, ignoreCase = true) ||
+                entry.merchantName.contains(q, ignoreCase = true) ||
+                entry.categoryName.contains(q, ignoreCase = true)
+        }.take(limit)
+    }
 
     // ── NAME-BASED MAPPINGS ──────────────────────────────────────────────────
     // Partial string matches against recipient names (case-insensitive)
@@ -223,20 +260,22 @@ object BusinessDictionary {
     )
 
     /**
-     * Returns the category name for the given recipient name and/or number.
-     * Checks Paybill number first (exact match), then name (partial, case-insensitive).
+     * Returns the category name for the given recipient name and/or Paybill/Till number.
+     * Checks Paybill/Till registry first (exact match or inline code), then exact/partial name.
      */
     fun getCategoryForRecipient(recipientName: String, recipientNumber: String?): String? {
         // 1. Exact Paybill/Till number match (fastest, most reliable)
-        if (recipientNumber != null) {
-            val paybillMatch = paybillMappings[recipientNumber]
-            if (paybillMatch != null) return paybillMatch
+        lookupCode(recipientNumber)?.let { return it.categoryName }
+
+        // 1b. Inline 5-8 digit business code embedded in recipient text (e.g. "888888 - KPLC")
+        Regex("""\b(\d{5,8})\b""").find(recipientName)?.groupValues?.getOrNull(1)?.let { embeddedCode ->
+            lookupCode(embeddedCode)?.let { return it.categoryName }
         }
 
         val upperName = recipientName.uppercase()
 
         // 2. Exact name match
-        val exactMatch = nameMappings[recipientName]
+        val exactMatch = nameMappings[recipientName] ?: nameMappings[upperName]
         if (exactMatch != null) return exactMatch
 
         // 3. Partial name match (e.g. "NAIVAS RIVERSIDE" → matches "NAIVAS")

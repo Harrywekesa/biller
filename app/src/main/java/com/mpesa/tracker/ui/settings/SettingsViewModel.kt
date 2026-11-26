@@ -92,6 +92,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { repository.deleteCustomRule(merchantName) }
     }
 
+    fun savePaybillCodeRule(code: String, categoryId: Int) {
+        viewModelScope.launch {
+            repository.savePaybillCodeRule(code, categoryId)
+            _statusMessage.value = "Paybill/Till rule saved for code $code"
+        }
+    }
+
     fun deleteTransferRule(merchantKey: String) {
         viewModelScope.launch { repository.deleteTransferRule(merchantKey) }
     }

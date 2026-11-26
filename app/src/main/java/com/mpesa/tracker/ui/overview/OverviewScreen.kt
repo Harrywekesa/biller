@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.mpesa.tracker.data.local.entities.TransactionEntity
 import com.mpesa.tracker.domain.parser.AccountSource
+import com.mpesa.tracker.ui.components.AddManualTransactionSheet
 import com.mpesa.tracker.ui.components.TransactionDetailBottomSheet
 import com.mpesa.tracker.ui.components.TransactionLedgerCard
 import com.mpesa.tracker.ui.theme.BillerTheme
@@ -48,6 +49,7 @@ fun OverviewScreen(
     val selectedAccountFilter by viewModel.selectedAccountFilter.collectAsState()
 
     var selectedTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
+    var showAddManualSheet by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scheme = MaterialTheme.colorScheme
     val semantic = BillerTheme.colors
@@ -331,8 +333,19 @@ fun OverviewScreen(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    TextButton(onClick = { onNavigateToActivity(null, "ALL") }) {
-                        Text("See All", fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        FilledTonalButton(
+                            onClick = { showAddManualSheet = true },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Cash", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        TextButton(onClick = { onNavigateToActivity(null, "ALL") }) {
+                            Text("See All", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -425,6 +438,18 @@ fun OverviewScreen(
                 viewModel.deleteTransaction(tx.receiptNumber)
                 selectedTransaction = null
                 Toast.makeText(context, "Transaction deleted", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    if (showAddManualSheet) {
+        AddManualTransactionSheet(
+            categories = categories,
+            onDismiss = { showAddManualSheet = false },
+            onSave = { merchant, amount, fee, nature, source, catId, note, dateTs, businessCode ->
+                viewModel.addManualTransaction(merchant, amount, fee, nature, source, catId, note, dateTs, businessCode)
+                showAddManualSheet = false
+                Toast.makeText(context, "Saved entry", Toast.LENGTH_SHORT).show()
             }
         )
     }

@@ -22,13 +22,13 @@ object MpesaParser {
     // Specific Regexes for tighter matching
     
     // PAYBILL / BUY GOODS (e.g., OJM12ABCD34 Confirmed. Ksh500.00 paid to NAIVAS...)
-    private val PAYBILL_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+paid\s+to\s+(?<recipient>.+?)\.?\s+on\s+(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\.(?:\s*New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}))?.*""".toRegex(RegexOption.IGNORE_CASE)
+    private val PAYBILL_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+(?:\.\d{1,2})?)\s+paid\s+to\s+(?<recipient>.+?)\.?\s+on\s+(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\.?(?:\s*New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+(?:\.\d{1,2})?))?.*""".toRegex(RegexOption.IGNORE_CASE)
 
     // SEND MONEY (e.g., OJM... Confirmed. Ksh500 sent to JOHN DOE 07123...)
     private val SEND_MONEY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+sent\s+to\s+(?<recipient>.+?)(?:\s+(?<phone>(?:07|01|254|2547|2541)[\d*]{6,12}))?\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\..*?New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}).*""".toRegex(RegexOption.IGNORE_CASE)
     
-    // SEND TO PAYBILL VER. 2 (Data Bundles / Safaricom)
-    private val SENT_TO_ACCOUNT_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+sent\s+to\s+(?<recipient>.+?)\s+for\s+account.*?on\s+(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\s+New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}).*""".toRegex(RegexOption.IGNORE_CASE)
+    // SEND TO PAYBILL VER. 2 (Data Bundles / Safaricom / Paybill for account)
+    private val SENT_TO_ACCOUNT_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+(?:\.\d{1,2})?)\s+sent\s+to\s+(?<recipient>.+?)\s+for\s+account\s+(?<account>[^\s.]+).*?on\s+(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\.?\s*New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+(?:\.\d{1,2})?).*""".toRegex(RegexOption.IGNORE_CASE)
 
     // BUY AIRTIME
     private val BUY_AIRTIME_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+You\s+bought\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+of\s+airtime\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M).*?New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
@@ -37,11 +37,19 @@ object MpesaParser {
     private val RECEIVED_MONEY_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s*You\s+have\s+received\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>.+?)(?:\s+(?<phone>(?:07|01|254|2547|2541)[\d*]{6,12}))?\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\.?.*?New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
     
     // AGENT WITHDRAWAL (e.g. QJM12ABCD34 Confirmed. on 12/04/23 at 10:30 AMWithdraw Ksh500.00 from 123456 - AGENT NAME. New M-PESA balance is Ksh1,000.00...)
-    private val WITHDRAW_CASH_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\s*[Ww]ithdraw\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2})\s+from\s+(?<recipient>.+?)(?=\.?\s*New\s+M-PESA\s+balance)""".toRegex(RegexOption.IGNORE_CASE)
+    private val WITHDRAW_CASH_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:on\s+)?(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)\s*[Ww]ithdraw\s+(?:Ksh|Kshs)\s?(?<amount>[\d,]+(?:\.\d{1,2})?)\s+from\s+(?<recipient>.+?)(?=\.?\s*New\s+M-PESA\s+balance)""".toRegex(RegexOption.IGNORE_CASE)
 
-    // M-PESA REVERSAL
-    // E.g. "OJM12REV01 Confirmed. Transaction OJM12ABCD34 has been reversed on 12/4/23 at 10:45 AM. Reversed amount Ksh500.00. New M-PESA balance is Ksh1,500.00."
-    private val REVERSAL_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+Transaction\s+(?<linked>[A-Z0-9]+)\s+(?:has\s+been\s+)?reversed.*?on\s+(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M).*?(?:Ksh|Kshs)\s?(?<amount>[\d,]+\.\d{2}).*?(?:New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\s?(?<balance>[\d,]+\.\d{2}))?""".toRegex(RegexOption.IGNORE_CASE)
+    // M-PESA REVERSAL — covers Safaricom's major reversal SMS templates:
+    // A) "OJM12REV01 Confirmed. Transaction OJM12ABCD34 has been reversed on 12/4/23 at 10:45 AM. Reversed amount Ksh500.00. New M-PESA balance is Ksh1,500.00."
+    // B) "OJM12REV01 Confirmed. Transaction OJM12ABCD34 has been reversed on 12/4/23 at 10:45 AM and Ksh500.00 credited to / debited from your M-PESA account..."
+    // C) "OJM12REV01 Confirmed. Transaction OJM12ABCD34 for Ksh500.00 has been reversed on 12/4/23 at 10:45 AM..."
+    // D) "UAX12REV01 Confirmed. Your reversal of Ksh500.00 for transaction OJM12ABCD34 on 12/4/23 at 10:45 AM has been completed..."
+    // E) "OJM12REV01 Confirmed. Reversal of transaction OJM12ABCD34 on 12/4/23 at 10:45 AM. Reversed amount is Ksh500.00..."
+    private val REVERSAL_TX_FIRST_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Reversal\s+of\s+)?Transaction\s+(?<linked>[A-Z0-9]+)(?:\s+for\s+(?:Ksh|Kshs)\.?\s?(?<amountBefore>[\d,]+(?:\.\d{1,2})?))?\s+(?:has\s+been\s+)?reversed.*?on\s+(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M)(?:.*?(?:Ksh|Kshs)\.?\s?(?<amountAfter>[\d,]+(?:\.\d{1,2})?))?""".toRegex(RegexOption.IGNORE_CASE)
+    private val REVERSAL_OF_AMOUNT_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+(?:Your\s+)?reversal\s+of\s+(?:Ksh|Kshs)\.?\s?(?<amount>[\d,]+(?:\.\d{1,2})?)\s+(?:for\s+)?transaction\s+(?<linked>[A-Z0-9]+)(?:\s+on\s+(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M))?""".toRegex(RegexOption.IGNORE_CASE)
+    private val REVERSAL_SIMPLE_REGEX = """(?<receipt>[A-Z0-9]+)\s+Confirmed\.\s+Reversal\s+of\s+transaction\s+(?<linked>[A-Z0-9]+)\s+on\s+(?<date>\d{1,2}/\d{1,2}/\d{2}(?:\s+at)?\s+\d{1,2}:\d{2}\s+[AP]M).*?(?:Ksh|Kshs)\.?\s?(?<amount>[\d,]+(?:\.\d{1,2})?)""".toRegex(RegexOption.IGNORE_CASE)
+    private val REVERSAL_BALANCE_REGEX = """New\s+M-PESA\s+balance\s+is\s+(?:Ksh|Kshs)\.?\s?([\d,]+(?:\.\d{1,2})?)""".toRegex(RegexOption.IGNORE_CASE)
+    private val REVERSAL_COST_REGEX = """Transaction\s+cost,\s+(?:Ksh|Kshs)\.?\s?([\d,]+(?:\.\d{1,2})?)""".toRegex(RegexOption.IGNORE_CASE)
 
     // MERCHANT TILL CONFIRMATION (sometimes delivered from Equity/PesaLink/Safaricom channels)
     // E.g. "Confirmed. Payment of KES. 50.00 to JONICE ENT Till No. 0711813785 has been received. Ref. UKGIR2F6XR on 16-11-2026 at 07:55. Thank you."
@@ -64,7 +72,7 @@ object MpesaParser {
             return null
         }
 
-        return parseReversal(cleanBody)
+        return parseReversal(cleanBody, smsTimestamp)
             ?: parsePaybill(cleanBody)
             ?: parseSentToAccount(cleanBody)
             ?: parseSendMoney(cleanBody)
@@ -76,24 +84,48 @@ object MpesaParser {
             ?: parseTillConfirmation(cleanBody)
     }
 
-    private fun parseReversal(sms: String): ParsedMpesaResult? {
-        val match = REVERSAL_REGEX.find(sms) ?: return null
-        val amount = match.groups["amount"]?.value?.replace(",", "")?.toDoubleOrNull() ?: return null
-        val balance = match.groups["balance"]?.value?.replace(",", "")?.toDoubleOrNull()
-        val linked = match.groups["linked"]?.value?.trim()
-        val timestamp = parseRobustDate(match.groups["date"]?.value ?: "")
+    private fun parseReversal(sms: String, smsTimestamp: Long?): ParsedMpesaResult? {
+        REVERSAL_TX_FIRST_REGEX.find(sms)?.let { match ->
+            val rawAmt = match.groups["amountBefore"]?.value ?: match.groups["amountAfter"]?.value
+            return buildReversalResult(match, rawAmt, sms, smsTimestamp)
+        }
+        REVERSAL_OF_AMOUNT_REGEX.find(sms)?.let { match ->
+            return buildReversalResult(match, match.groups["amount"]?.value, sms, smsTimestamp)
+        }
+        REVERSAL_SIMPLE_REGEX.find(sms)?.let { match ->
+            return buildReversalResult(match, match.groups["amount"]?.value, sms, smsTimestamp)
+        }
+        return null
+    }
+
+    private fun buildReversalResult(
+        match: MatchResult,
+        rawAmount: String?,
+        sms: String,
+        smsTimestamp: Long?
+    ): ParsedMpesaResult? {
+        val amount = rawAmount?.replace(",", "")?.toDoubleOrNull() ?: return null
+        val balance = REVERSAL_BALANCE_REGEX.find(sms)?.groups?.get(1)?.value?.replace(",", "")?.toDoubleOrNull()
+        val linked = safeGroup(match, "linked")?.trim() ?: return null
+        val dateStr = safeGroup(match, "date")
+        val timestamp = if (!dateStr.isNullOrBlank()) parseRobustDate(dateStr) else (smsTimestamp ?: System.currentTimeMillis())
+        val cost = REVERSAL_COST_REGEX.find(sms)?.groups?.get(1)?.value?.replace(",", "")?.toDoubleOrNull() ?: 0.0
         return ParsedMpesaResult(
-            receiptNumber = match.groups["receipt"]?.value ?: "",
+            receiptNumber = safeGroup(match, "receipt") ?: return null,
             type = TransactionType.UNKNOWN,
             amount = amount,
-            transactionCost = 0.0,
+            transactionCost = cost,
             timestamp = timestamp,
             recipientName = "Reversal ($linked)",
+            recipientNumber = linked,
             balance = balance,
             rawSms = sms,
             linkedReceiptNumber = linked
         )
     }
+
+    private fun safeGroup(match: MatchResult, name: String): String? =
+        try { match.groups[name]?.value } catch (_: IllegalArgumentException) { null }
 
     private fun parseTillConfirmation(sms: String): ParsedMpesaResult? {
         val match = TILL_CONFIRMATION_REGEX.find(sms) ?: return null
@@ -178,7 +210,9 @@ object MpesaParser {
 
     private fun parsePaybill(sms: String): ParsedMpesaResult? {
         val match = PAYBILL_REGEX.find(sms) ?: return null
-        return buildResult(match, TransactionType.PAYBILL, sms)
+        val result = buildResult(match, TransactionType.PAYBILL, sms)
+        val extractedCode = extractBusinessCode(result.recipientName)
+        return if (extractedCode != null) result.copy(recipientNumber = extractedCode) else result
     }
     
     private fun parseSendMoney(sms: String): ParsedMpesaResult? {
@@ -195,8 +229,11 @@ object MpesaParser {
     private fun parseSentToAccount(sms: String): ParsedMpesaResult? {
         val match = SENT_TO_ACCOUNT_REGEX.find(sms) ?: return null
         val recipientName = match.groups["recipient"]?.value?.trim() ?: "Unknown"
+        val accountNum = safeGroup(match, "account")?.trim()?.takeIf { it.isNotEmpty() }
+            ?: extractBusinessCode(recipientName)
         return buildResult(match, TransactionType.PAYBILL, sms).copy(
-            recipientName = recipientName
+            recipientName = recipientName,
+            recipientNumber = accountNum
         )
     }
 
@@ -240,6 +277,7 @@ object MpesaParser {
     private fun parseWithdrawCash(sms: String): ParsedMpesaResult? {
         val match = WITHDRAW_CASH_REGEX.find(sms) ?: return null
         val recipientName = match.groups["recipient"]?.value?.trim() ?: "Unknown"
+        val agentCode = extractBusinessCode(recipientName)
         val costRegex = """Transaction\s+cost,\s+(?:Ksh|Kshs)\s?([\d,]+\.\d{2})""".toRegex(RegexOption.IGNORE_CASE)
         val cost = costRegex.find(sms)?.groups?.get(1)?.value?.replace(",", "")?.toDoubleOrNull() ?: 0.0
 
@@ -248,9 +286,21 @@ object MpesaParser {
 
         return buildResult(match, TransactionType.WITHDRAW_CASH, sms).copy(
             recipientName = recipientName,
+            recipientNumber = agentCode,
             transactionCost = cost,
             balance = balance
         )
+    }
+
+    /** Extracts leading/trailing Paybill, Till, or Agent shortcode (e.g. "888888 - KPLC" -> "888888"). */
+    private fun extractBusinessCode(recipientText: String): String? {
+        val leading = Regex("""^(\d{5,10})\s*-\s*.+""").find(recipientText.trim())
+        if (leading != null) return leading.groupValues[1]
+        val trailingTill = Regex("""(?:Till\s*No\.?|Paybill|Account)\s*[:#.]?\s*(\d{5,10})\b""", RegexOption.IGNORE_CASE)
+            .find(recipientText)
+        if (trailingTill != null) return trailingTill.groupValues[1]
+        val trailingStandalone = Regex("""\b(\d{5,10})$""").find(recipientText.trim())
+        return trailingStandalone?.groupValues?.get(1)
     }
 
     private fun buildResult(match: MatchResult, type: TransactionType, raw: String): ParsedMpesaResult {

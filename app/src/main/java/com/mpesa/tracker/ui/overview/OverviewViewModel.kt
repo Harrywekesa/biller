@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mpesa.tracker.data.local.entities.CategoryEntity
 import com.mpesa.tracker.data.local.entities.TransactionEntity
 import com.mpesa.tracker.data.local.entities.TransactionNature
+import com.mpesa.tracker.data.local.entities.TransactionType
 import com.mpesa.tracker.data.repository.TransactionRepository
 import com.mpesa.tracker.data.repository.UserPreferencesRepository
 import com.mpesa.tracker.domain.models.ReportPeriod
@@ -104,17 +105,34 @@ class OverviewViewModel @Inject constructor(
         }.timeInMillis
         val elapsedDays = Calendar.getInstance().get(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
 
-        val wallets = allTxs.groupBy { it.accountSource }.entries.map { (srcName, txs) ->
+        val groupedWallets = allTxs.groupBy { it.accountSource }.toMutableMap()
+        val estimatedCash = computeEstimatedCashBalance(allTxs)
+
+        val wallets = groupedWallets.entries.map { (srcName, txs) ->
             val src = AccountSource.fromName(srcName)
             val bal: Double? = when (src) {
                 AccountSource.MPESA -> computeMpesaBalance(txs)
+                AccountSource.CASH -> estimatedCash
                 else -> txs.firstOrNull { it.balance != null }?.balance
             }
             val label = bal?.let {
                 if (it < 0) "-Ksh ${fmt.format(-it)}" else "Ksh ${fmt.format(it)}"
             }
             WalletSummaryUi(source = src, balanceLabel = label, txCount = txs.size)
-        }.sortedBy { if (it.source == AccountSource.MPESA) 0 else 1 }
+        }.let { list ->
+            if (estimatedCash != null && list.none { it.source == AccountSource.CASH }) {
+                val cashLabel = if (estimatedCash < 0) "-Ksh ${fmt.format(-estimatedCash)}" else "Ksh ${fmt.format(estimatedCash)}"
+                list + WalletSummaryUi(source = AccountSource.CASH, balanceLabel = cashLabel, txCount = 0)
+            } else {
+                list
+            }
+        }.sortedBy {
+            when (it.source) {
+                AccountSource.MPESA -> 0
+                AccountSource.CASH -> 1
+                else -> 2
+            }
+        }
 
         val now = System.currentTimeMillis()
         val threeDaysLater = now + 3L * 24 * 60 * 60 * 1000L
@@ -186,6 +204,50 @@ class OverviewViewModel @Inject constructor(
 
     fun deleteTransaction(receiptNumber: String) {
         viewModelScope.launch { repository.deleteTransaction(receiptNumber) }
+    }
+
+    fun addManualTransaction(
+        merchant: String,
+        amount: Double,
+        fee: Double,
+        nature: TransactionNature,
+        source: AccountSource,
+        categoryId: Int?,
+        note: String?,
+        dateTimestamp: Long,
+        businessCode: String?
+    ) {
+        viewModelScope.launch {
+            repository.insertManualTransaction(
+                merchant = merchant,
+                amount = amount,
+                fee = fee,
+                nature = nature,
+                source = source,
+                categoryId = categoryId,
+                note = note,
+                dateTimestamp = dateTimestamp,
+                businessCode = businessCode
+            )
+        }
+    }
+
+    /** Computes closed-loop estimated Cash on Hand from M-Pesa cash withdrawals + manual Cash entries. */
+    private fun computeEstimatedCashBalance(allTxs: List<TransactionEntity>): Double? {
+        val withdrawnCash = allTxs.filter {
+            it.type == TransactionType.WITHDRAW_CASH && it.natureEnum != TransactionNature.REVERSAL
+        }.sumOf { it.amount }
+        val cashTxs = allTxs.filter {
+            it.accountSource == AccountSource.CASH.name && it.natureEnum != TransactionNature.REVERSAL
+        }
+        if (withdrawnCash == 0.0 && cashTxs.isEmpty()) return null
+        val cashIn = cashTxs.filter {
+            it.natureEnum == TransactionNature.INCOME || it.natureEnum == TransactionNature.TRANSFER
+        }.sumOf { it.amount }
+        val cashOut = cashTxs.filter {
+            it.natureEnum == TransactionNature.EXPENSE
+        }.sumOf { it.amount + it.transactionCost }
+        return withdrawnCash + cashIn - cashOut
     }
 
     private fun computeMpesaBalance(mpesaTxs: List<TransactionEntity>): Double {

@@ -388,8 +388,8 @@ fun TransactionsScreen(
         AddManualTransactionSheet(
             categories = categories,
             onDismiss = { showAddManualSheet = false },
-            onSave = { merchant, amount, fee, nature, source, catId, note ->
-                viewModel.addManualTransaction(merchant, amount, fee, nature, source, catId, note)
+            onSave = { merchant, amount, fee, nature, source, catId, note, dateTs, businessCode ->
+                viewModel.addManualTransaction(merchant, amount, fee, nature, source, catId, note, dateTs, businessCode)
                 showAddManualSheet = false
                 Toast.makeText(context, "Saved entry", Toast.LENGTH_SHORT).show()
             }

@@ -114,6 +114,7 @@ class SmsSyncService @Inject constructor(
                 }
             }
             if (newest > lastSynced) prefs.edit().putLong(KEY_LAST_SYNCED_TS, newest).apply()
+            transactionRepository.reconcileExistingReversals()
         } catch (e: Exception) {
             Log.e("SmsSyncService", "Error reading M-Pesa SMS inbox", e)
         }

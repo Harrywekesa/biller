@@ -31,6 +31,15 @@ interface TransactionDao {
     @Query("UPDATE transactions SET categoryId = :categoryId WHERE recipientName = :merchantName AND transactionNature = :nature")
     suspend fun updateCategoryForMerchant(merchantName: String, categoryId: Int, nature: String = "EXPENSE")
 
+    @Query("UPDATE transactions SET categoryId = :categoryId WHERE recipientNumber = :code AND transactionNature = :nature")
+    suspend fun updateCategoryForCode(code: String, categoryId: Int, nature: String = "EXPENSE")
+
+    @Query("SELECT * FROM transactions WHERE transactionNature = 'REVERSAL' AND linkedReceiptNumber = :originalReceipt LIMIT 1")
+    suspend fun findReversalPointingTo(originalReceipt: String): TransactionEntity?
+
+    @Query("SELECT * FROM transactions WHERE transactionNature = 'REVERSAL' AND linkedReceiptNumber IS NOT NULL")
+    suspend fun getAllReversals(): List<TransactionEntity>
+
     @Query("UPDATE transactions SET categoryId = :categoryId WHERE receiptNumber = :receiptNumber")
     suspend fun updateSingleTransactionCategory(receiptNumber: String, categoryId: Int)
 

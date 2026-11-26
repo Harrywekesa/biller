@@ -189,15 +189,16 @@ class TransactionRepository @Inject constructor(
     ) {
         var tx = rawTx
 
-        // 1. Check Reversal linking first
+        // 1. Bidirectional Reversal linking (order-independent so spend & fees always zero out)
         val linkedReceipt = tx.linkedReceiptNumber
         if (tx.natureEnum == TransactionNature.REVERSAL && !linkedReceipt.isNullOrBlank()) {
-            transactionDao.getTransactionByReceipt(linkedReceipt)?.let { original ->
-                transactionDao.updateTransaction(
-                    original.copy(
-                        transactionNature = TransactionNature.REVERSAL.name,
-                        categoryId = null
-                    )
+            markOriginalTransactionReversed(linkedReceipt, tx.receiptNumber)
+        } else if (tx.natureEnum != TransactionNature.REVERSAL) {
+            transactionDao.findReversalPointingTo(tx.receiptNumber)?.let { reversalTx ->
+                tx = tx.copy(
+                    transactionNature = TransactionNature.REVERSAL.name,
+                    transferGroupRef = reversalTx.receiptNumber,
+                    categoryId = null
                 )
             }
         }
@@ -369,12 +370,35 @@ class TransactionRepository @Inject constructor(
         return if (tx.isIncome) TransactionNature.INCOME else TransactionNature.EXPENSE
     }
 
+    private suspend fun markOriginalTransactionReversed(originalReceipt: String, reversalReceipt: String) {
+        transactionDao.getTransactionByReceipt(originalReceipt)?.let { original ->
+            if (original.natureEnum != TransactionNature.REVERSAL || original.transferGroupRef != reversalReceipt) {
+                transactionDao.updateTransaction(
+                    original.copy(
+                        transactionNature = TransactionNature.REVERSAL.name,
+                        transferGroupRef = reversalReceipt,
+                        categoryId = null
+                    )
+                )
+            }
+        }
+    }
+
+    /** Reconciles any existing M-Pesa reversal records against their original transactions safely. */
+    suspend fun reconcileExistingReversals() {
+        transactionDao.getAllReversals().forEach { rev ->
+            val target = rev.linkedReceiptNumber?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
+            markOriginalTransactionReversed(target, rev.receiptNumber)
+        }
+    }
+
     /**
      * One-time safe, non-destructive V2 reconciliation pass across existing persisted transactions.
      * Links existing Bank <-> M-Pesa transfer pairs and removes stale WITHDRAW_CASH fee pollution
      * without ever deleting a single transaction, note, budget, or rule.
      */
     suspend fun reconcileExistingDataOnceIfNeeded() {
+        reconcileExistingReversals()
         if (userPreferences.wasTransferReconciledV2()) return
         val all = transactionDao.getAllTransactionsOnce()
         val byReceipt = all.associateBy { it.receiptNumber }
@@ -436,10 +460,64 @@ class TransactionRepository @Inject constructor(
         if (applyToAllFromMerchant) {
             transactionDao.updateCategoryForMerchant(merchantName, newCategoryId, tx.transactionNature)
             customRuleDao.insertOrUpdateRule(CustomRuleEntity(merchantName = merchantName, categoryId = newCategoryId))
+
+            val businessCode = tx.recipientNumber?.trim()?.takeIf {
+                it.isNotEmpty() && (tx.type == TransactionType.PAYBILL || tx.type == TransactionType.BUY_GOODS)
+            }
+            if (businessCode != null) {
+                transactionDao.updateCategoryForCode(businessCode, newCategoryId, tx.transactionNature)
+                customRuleDao.insertOrUpdateRule(CustomRuleEntity(merchantName = "CODE:$businessCode", categoryId = newCategoryId))
+            }
         } else {
             transactionDao.updateSingleTransactionCategory(receiptNumber, newCategoryId)
         }
         checkAndNotifyBudgetThreshold(newCategoryId)
+    }
+
+    /** Registers or updates a Paybill/Till code categorization rule and applies it to matching existing expenses. */
+    suspend fun savePaybillCodeRule(code: String, categoryId: Int) {
+        val cleanCode = code.trim()
+        if (cleanCode.isEmpty()) return
+        customRuleDao.insertOrUpdateRule(CustomRuleEntity(merchantName = "CODE:$cleanCode", categoryId = categoryId))
+        transactionDao.updateCategoryForCode(cleanCode, categoryId, TransactionNature.EXPENSE.name)
+        checkAndNotifyBudgetThreshold(categoryId)
+    }
+
+    /** Single shared entry point for inserting manual cash / wallet transactions cleanly. */
+    suspend fun insertManualTransaction(
+        merchant: String,
+        amount: Double,
+        fee: Double,
+        nature: TransactionNature,
+        source: AccountSource,
+        categoryId: Int?,
+        note: String?,
+        dateTimestamp: Long = System.currentTimeMillis(),
+        businessCode: String? = null
+    ) {
+        val type = when (nature) {
+            TransactionNature.INCOME -> TransactionType.RECEIVED_MONEY
+            TransactionNature.TRANSFER -> TransactionType.UNKNOWN
+            else -> TransactionType.BUY_GOODS
+        }
+        val cleanCode = businessCode?.trim()?.takeIf { it.isNotEmpty() }
+        val tx = TransactionEntity(
+            receiptNumber = "MAN-${java.util.UUID.randomUUID().toString().take(8).uppercase()}",
+            type = type,
+            amount = amount,
+            transactionCost = fee,
+            dateTimestamp = dateTimestamp,
+            recipientName = merchant.trim(),
+            recipientNumber = cleanCode,
+            categoryId = if (nature == TransactionNature.EXPENSE) categoryId else null,
+            isIncome = nature == TransactionNature.INCOME,
+            rawSmsBody = "Manual Entry",
+            accountSource = source.name,
+            transactionNature = nature.name,
+            userNote = note?.trim()?.takeIf { it.isNotEmpty() },
+            isManualEntry = true
+        )
+        ingestTransaction(tx)
     }
 
     suspend fun updateSingleTransactionCategory(receiptNumber: String, categoryId: Int) {

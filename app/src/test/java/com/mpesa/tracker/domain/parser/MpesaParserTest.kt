@@ -242,4 +242,39 @@ class MpesaParserTest {
         // isIncome is set in MpesaSmsWorker/SmsSyncService, not in the parser itself
         // So just assert the type is correct here
     }
+
+    // ── NEW: Reversal formats & Paybill/Till code extraction ─────────────────
+
+    @Test
+    fun `parses all common Safaricom M-Pesa reversal formats and extracts linked receipt`() {
+        val revA = "OJM12REV01 Confirmed. Transaction OJM12ABCD34 has been reversed on 12/4/23 at 10:45 AM. Reversed amount Ksh500.00. New M-PESA balance is Ksh1,500.00."
+        val revB = "OJM12REV02 Confirmed. Transaction OJM12ABCD35 for Ksh1,250.00 has been reversed on 13/4/23 at 6:50 PM and Ksh1,250.00 credited to your M-PESA account. New M-PESA balance is Ksh2,750.00."
+        val revC = "UAX12REV03 Confirmed. Your reversal of Ksh300.00 for transaction OJM12ABCD36 on 14/4/23 at 9:15 AM has been completed. New M-PESA balance is Ksh3,050.00."
+        val revD = "OBM12REV04 Confirmed. Reversal of transaction OJM12ABCD37 on 15/4/23 at 11:30 AM. Reversed amount is Ksh100. New M-PESA balance is Ksh3,150.00."
+
+        val rA = MpesaParser.parseMessage(revA)
+        val rB = MpesaParser.parseMessage(revB)
+        val rC = MpesaParser.parseMessage(revC)
+        val rD = MpesaParser.parseMessage(revD)
+
+        assertNotNull(rA); assertEquals("OJM12ABCD34", rA!!.linkedReceiptNumber); assertEquals(500.0, rA.amount, 0.01); assertEquals(1500.0, rA.balance!!, 0.01)
+        assertNotNull(rB); assertEquals("OJM12ABCD35", rB!!.linkedReceiptNumber); assertEquals(1250.0, rB.amount, 0.01); assertEquals(2750.0, rB.balance!!, 0.01)
+        assertNotNull(rC); assertEquals("OJM12ABCD36", rC!!.linkedReceiptNumber); assertEquals(300.0, rC.amount, 0.01); assertEquals(3050.0, rC.balance!!, 0.01)
+        assertNotNull(rD); assertEquals("OJM12ABCD37", rD!!.linkedReceiptNumber); assertEquals(100.0, rD.amount, 0.01); assertEquals(3150.0, rD.balance!!, 0.01)
+    }
+
+    @Test
+    fun `extracts Paybill Till and Agent shortcodes cleanly without breaking recipientName`() {
+        val paybillLeading = "OJM12PAY01 Confirmed. Ksh500.00 paid to 888888 - KPLC PREPAID. on 12/4/23 at 10:30 AM.New M-PESA balance is Ksh14,500.20. Transaction cost, Ksh23.00."
+        val agentWithdraw = "QJM12ABCD34 Confirmed. on 12/04/23 at 10:30 AMWithdraw Ksh500.00 from 123456 - AGENT NAME. New M-PESA balance is Ksh1,000.00. Transaction cost, Ksh28.00."
+        val sentForAccount = "OJM12ACC01 Confirmed. Ksh1,500.00 sent to KPLC PREPAID for account 14235678 on 12/4/23 at 10:30 AM. New M-PESA balance is Ksh10,000.00."
+
+        val r1 = MpesaParser.parseMessage(paybillLeading)
+        val r2 = MpesaParser.parseMessage(agentWithdraw)
+        val r3 = MpesaParser.parseMessage(sentForAccount)
+
+        assertNotNull(r1); assertEquals("888888", r1!!.recipientNumber)
+        assertNotNull(r2); assertEquals("123456", r2!!.recipientNumber); assertEquals("123456 - AGENT NAME", r2.recipientName)
+        assertNotNull(r3); assertEquals("KPLC PREPAID", r3!!.recipientName); assertEquals("14235678", r3.recipientNumber)
+    }
 }

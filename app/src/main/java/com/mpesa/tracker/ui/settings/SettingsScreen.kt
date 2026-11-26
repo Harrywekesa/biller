@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.mpesa.tracker.data.local.entities.CategoryEntity
 import com.mpesa.tracker.data.repository.ThemeMode
+import com.mpesa.tracker.domain.dictionary.BusinessDictionary
 import com.mpesa.tracker.ui.components.categoryIconFor
 import com.mpesa.tracker.ui.components.categoryIconOptions
 import com.mpesa.tracker.ui.components.parseCategoryColor
@@ -436,35 +437,168 @@ fun SettingsScreen(
     }
 
     if (showRulesSheet) {
-        ModalBottomSheet(onDismissRequest = { showRulesSheet = false }) {
-            Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Saved Rules", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(transferRules, key = { "tr_${it.merchantKey}" }) { rule ->
-                        ListItem(
-                            headlineContent = { Text(rule.merchantKey) },
-                            supportingContent = { Text("Always mark as ${rule.nature}") },
-                            trailingContent = {
-                                IconButton(onClick = { viewModel.deleteTransferRule(rule.merchantKey) }) {
-                                    Icon(Icons.Filled.DeleteOutline, "Delete Rule")
+        var rulesTab by remember { mutableIntStateOf(0) }
+        var registrySearch by remember { mutableStateOf("") }
+        var newCode by remember { mutableStateOf("") }
+        var selectedRuleCatId by remember(categories) { mutableStateOf(categories.firstOrNull()?.id) }
+
+        ModalBottomSheet(
+            onDismissRequest = { showRulesSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("Rules & Paybill Registry", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = rulesTab == 0,
+                        onClick = { rulesTab = 0 },
+                        shape = SegmentedButtonDefaults.itemShape(0, 2)
+                    ) { Text("Saved (${transferRules.size + customRules.size})", fontSize = 12.sp) }
+                    SegmentedButton(
+                        selected = rulesTab == 1,
+                        onClick = { rulesTab = 1 },
+                        shape = SegmentedButtonDefaults.itemShape(1, 2)
+                    ) { Text("Paybill / Till Directory", fontSize = 12.sp) }
+                }
+
+                if (rulesTab == 0) {
+                    // Add Paybill / Till code rule bar
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = scheme.surfaceVariant.copy(alpha = 0.45f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Map Paybill or Till Code to Category", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = newCode,
+                                    onValueChange = { newCode = it.trim() },
+                                    label = { Text("Code (e.g. 0711813785)") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Button(
+                                    onClick = {
+                                        val catId = selectedRuleCatId
+                                        if (newCode.isNotBlank() && catId != null) {
+                                            viewModel.savePaybillCodeRule(newCode, catId)
+                                            newCode = ""
+                                        }
+                                    },
+                                    enabled = newCode.isNotBlank() && selectedRuleCatId != null
+                                ) { Text("Save") }
+                            }
+                            if (categories.isNotEmpty()) {
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(categories, key = { it.id }) { cat ->
+                                        FilterChip(
+                                            selected = selectedRuleCatId == cat.id,
+                                            onClick = { selectedRuleCatId = cat.id },
+                                            label = { Text(cat.name, fontSize = 11.sp) }
+                                        )
+                                    }
                                 }
                             }
-                        )
+                        }
                     }
-                    items(customRules, key = { "cr_${it.merchantName}" }) { rule ->
-                        val catName = categories.find { it.id == rule.categoryId }?.name ?: "Category #${rule.categoryId}"
-                        ListItem(
-                            headlineContent = { Text(rule.merchantName) },
-                            supportingContent = { Text("Auto-category: $catName") },
-                            trailingContent = {
-                                IconButton(onClick = { viewModel.deleteCustomRule(rule.merchantName) }) {
-                                    Icon(Icons.Filled.DeleteOutline, "Delete Rule")
+
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 340.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(transferRules, key = { "tr_${it.merchantKey}" }) { rule ->
+                            ListItem(
+                                headlineContent = { Text(rule.merchantKey) },
+                                supportingContent = { Text("Always mark as ${rule.nature}") },
+                                trailingContent = {
+                                    IconButton(onClick = { viewModel.deleteTransferRule(rule.merchantKey) }) {
+                                        Icon(Icons.Filled.DeleteOutline, "Delete Rule")
+                                    }
+                                }
+                            )
+                        }
+                        items(customRules, key = { "cr_${it.merchantName}" }) { rule ->
+                            val catName = categories.find { it.id == rule.categoryId }?.name ?: "Category #${rule.categoryId}"
+                            val displayTitle = if (rule.merchantName.startsWith("CODE:")) {
+                                val code = rule.merchantName.removePrefix("CODE:")
+                                val known = BusinessDictionary.lookupCode(code)?.merchantName
+                                if (known != null) "Code $code · $known" else "Paybill/Till $code"
+                            } else rule.merchantName
+
+                            ListItem(
+                                headlineContent = { Text(displayTitle) },
+                                supportingContent = { Text("Auto-category: $catName") },
+                                trailingContent = {
+                                    IconButton(onClick = { viewModel.deleteCustomRule(rule.merchantName) }) {
+                                        Icon(Icons.Filled.DeleteOutline, "Delete Rule")
+                                    }
+                                }
+                            )
+                        }
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = registrySearch,
+                        onValueChange = { registrySearch = it },
+                        label = { Text("Search Kenyan Paybill or Till…") },
+                        placeholder = { Text("e.g. 888888, KPLC, Naivas, Equity") },
+                        leadingIcon = { Icon(Icons.Filled.Search, null) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    val entries = remember(registrySearch) {
+                        BusinessDictionary.searchRegistry(registrySearch, limit = 50)
+                    }
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 360.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(entries, key = { "${it.code}_${it.merchantName}" }) { entry ->
+                            val customRule = customRules.find { it.merchantName == "CODE:${entry.code}" }
+                            val activeCatName = customRule?.let { cr ->
+                                categories.find { it.id == cr.categoryId }?.name
+                            } ?: entry.categoryName
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = scheme.surfaceVariant.copy(alpha = 0.35f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("${entry.code} · ${entry.merchantName}", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                        Text(
+                                            text = if (customRule != null) "Custom: $activeCatName" else "Registry: $activeCatName",
+                                            fontSize = 11.sp,
+                                            color = if (customRule != null) scheme.primary else scheme.onSurfaceVariant
+                                        )
+                                    }
+                                    TextButton(onClick = {
+                                        newCode = entry.code
+                                        rulesTab = 0
+                                    }) {
+                                        Text("Override")
+                                    }
                                 }
                             }
-                        )
+                        }
                     }
                 }
-                Spacer(Modifier.height(24.dp))
             }
         }
     }

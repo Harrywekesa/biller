@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.mpesa.tracker.data.local.entities.CategoryEntity
 import com.mpesa.tracker.data.local.entities.TransactionEntity
 import com.mpesa.tracker.data.local.entities.TransactionNature
-import com.mpesa.tracker.data.local.entities.TransactionType
 import com.mpesa.tracker.data.repository.TransactionRepository
 import com.mpesa.tracker.data.repository.UserPreferencesRepository
 import com.mpesa.tracker.domain.parser.AccountSource
@@ -14,7 +13,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.util.UUID
 import javax.inject.Inject
 
 enum class NatureFilter(val label: String) {
@@ -176,30 +174,22 @@ class TransactionsViewModel @Inject constructor(
         nature: TransactionNature,
         source: AccountSource,
         categoryId: Int?,
-        note: String?
+        note: String?,
+        dateTimestamp: Long = System.currentTimeMillis(),
+        businessCode: String? = null
     ) {
         viewModelScope.launch {
-            val type = when (nature) {
-                TransactionNature.INCOME -> TransactionType.RECEIVED_MONEY
-                TransactionNature.TRANSFER -> TransactionType.UNKNOWN
-                else -> TransactionType.BUY_GOODS
-            }
-            val tx = TransactionEntity(
-                receiptNumber = "MAN-${UUID.randomUUID().toString().take(8).uppercase()}",
-                type = type,
+            repository.insertManualTransaction(
+                merchant = merchant,
                 amount = amount,
-                transactionCost = fee,
-                dateTimestamp = System.currentTimeMillis(),
-                recipientName = merchant,
-                categoryId = if (nature == TransactionNature.EXPENSE) categoryId else null,
-                isIncome = nature == TransactionNature.INCOME,
-                rawSmsBody = "Manual Entry",
-                accountSource = source.name,
-                transactionNature = nature.name,
-                userNote = note,
-                isManualEntry = true
+                fee = fee,
+                nature = nature,
+                source = source,
+                categoryId = categoryId,
+                note = note,
+                dateTimestamp = dateTimestamp,
+                businessCode = businessCode
             )
-            repository.ingestTransaction(tx)
         }
     }
 
