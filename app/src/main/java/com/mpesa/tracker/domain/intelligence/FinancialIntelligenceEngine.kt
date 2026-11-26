@@ -78,7 +78,7 @@ class FinancialIntelligenceEngine @Inject constructor() {
         sb.appendLine("Use beautiful and readable Markdown (headings, bold, lists). Do not wrap the whole response in a markdown code block.")
         sb.appendLine()
         
-        sb.appendLine("### Category Breakdown")
+        sb.appendLine("### Category Breakdown (True Spend Only)")
         if (expensesByCategory.isEmpty()) {
             sb.appendLine("No expenses recorded.")
         } else {
@@ -87,6 +87,18 @@ class FinancialIntelligenceEngine @Inject constructor() {
             }
         }
         sb.appendLine()
+
+        if (dailySpendingTrend.isNotEmpty()) {
+            val peak = dailySpendingTrend.maxByOrNull { it.totalAmount }
+            val activeAvg = dailySpendingTrend.sumOf { it.totalAmount } / dailySpendingTrend.size
+            sb.appendLine("### Daily Spend Pacing")
+            sb.appendLine("- Active spending days: ${dailySpendingTrend.size}")
+            sb.appendLine("- Average spend on active days: KES ${String.format("%.2f", activeAvg)}")
+            if (peak != null) {
+                sb.appendLine("- Highest spend day: ${peak.dateString} (KES ${String.format("%.2f", peak.totalAmount)})")
+            }
+            sb.appendLine()
+        }
 
         sb.appendLine("### Day of the Week Insights")
         val dayMap = mapOf("0" to "Sunday", "1" to "Monday", "2" to "Tuesday", "3" to "Wednesday", "4" to "Thursday", "5" to "Friday", "6" to "Saturday")
@@ -199,21 +211,28 @@ class FinancialIntelligenceEngine @Inject constructor() {
         totalSpentThisMonth: Double,
         totalIncomeThisMonth: Double,
         topCategories: List<com.mpesa.tracker.data.local.entities.CategoryExpense>,
-        currentBalance: String
+        currentBalance: String,
+        totalFeesThisMonth: Double = 0.0,
+        cashOnHand: Double? = null
     ): String {
         val sb = StringBuilder()
-        sb.appendLine("You are a personal financial assistant embedded inside an M-Pesa expense tracking app for a Kenyan user.")
-        sb.appendLine("You have access to the user's M-Pesa transaction history. Answer questions conversationally, in 1-3 sentences unless a detailed breakdown is requested.")
-        sb.appendLine("Always use Kenyan Shillings (KES or Ksh) for amounts. Never make up data — only use the context provided.")
+        sb.appendLine("You are a personal financial assistant embedded inside Biller, a Kenyan M-Pesa, bank (Equity, I&M, Absa), and cash tracker.")
+        sb.appendLine("Internal self-transfers between the user's own accounts are already excluded from True Spend and True Income. Transaction fees ARE counted separately.")
+        sb.appendLine("Answer concisely in 1-3 sentences unless a detailed breakdown is requested. Always use Ksh / KES. Never invent numbers.")
         sb.appendLine()
         sb.appendLine("=== User's Current Financial Context ===")
         sb.appendLine("Current M-Pesa Balance: $currentBalance")
-        sb.appendLine("Total Spent This Month: KES ${String.format("%.2f", totalSpentThisMonth)}")
-        sb.appendLine("Total Received This Month: KES ${String.format("%.2f", totalIncomeThisMonth)}")
+        if (cashOnHand != null) {
+            sb.appendLine("Estimated Cash on Hand: KES ${String.format("%.2f", cashOnHand)}")
+        }
+        sb.appendLine("True Spend This Month: KES ${String.format("%.2f", totalSpentThisMonth)}")
+        sb.appendLine("True Income This Month: KES ${String.format("%.2f", totalIncomeThisMonth)}")
+        sb.appendLine("Transaction Fees Paid This Month: KES ${String.format("%.2f", totalFeesThisMonth)}")
         sb.appendLine()
         sb.appendLine("Top Spending Categories This Month:")
-        topCategories.take(5).forEach {
-            sb.appendLine("  - ${it.categoryName ?: "Uncategorized"}: KES ${String.format("%.2f", it.totalAmount)}")
+        topCategories.take(6).forEach {
+            val budgetNote = it.budgetLimit?.let { cap -> " (Budget: KES ${String.format("%.0f", cap)})" } ?: ""
+            sb.appendLine("  - ${it.categoryName ?: "Uncategorized"}: KES ${String.format("%.2f", it.totalAmount)}$budgetNote")
         }
         sb.appendLine("=== End of Context ===")
         sb.appendLine()

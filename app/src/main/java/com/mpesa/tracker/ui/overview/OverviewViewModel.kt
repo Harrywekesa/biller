@@ -8,6 +8,7 @@ import com.mpesa.tracker.data.local.entities.TransactionNature
 import com.mpesa.tracker.data.local.entities.TransactionType
 import com.mpesa.tracker.data.repository.TransactionRepository
 import com.mpesa.tracker.data.repository.UserPreferencesRepository
+import com.mpesa.tracker.domain.intelligence.WalletBalanceCalculator
 import com.mpesa.tracker.domain.models.ReportPeriod
 import com.mpesa.tracker.domain.parser.AccountSource
 import com.mpesa.tracker.framework.services.SmsSyncService
@@ -97,7 +98,7 @@ class OverviewViewModel @Inject constructor(
         selectedAccountFilter
     ) { allTxs, metrics, categoryExpenses, subscriptions, accountFilter ->
         val mpesaTxs = allTxs.filter { it.accountSource == AccountSource.MPESA.name }
-        val rawMpesaBal = computeMpesaBalance(mpesaTxs)
+        val rawMpesaBal = WalletBalanceCalculator.computeMpesaBalance(mpesaTxs)
 
         val todayStart = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
@@ -106,12 +107,12 @@ class OverviewViewModel @Inject constructor(
         val elapsedDays = Calendar.getInstance().get(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
 
         val groupedWallets = allTxs.groupBy { it.accountSource }.toMutableMap()
-        val estimatedCash = computeEstimatedCashBalance(allTxs)
+        val estimatedCash = WalletBalanceCalculator.computeEstimatedCashBalance(allTxs)
 
         val wallets = groupedWallets.entries.map { (srcName, txs) ->
             val src = AccountSource.fromName(srcName)
             val bal: Double? = when (src) {
-                AccountSource.MPESA -> computeMpesaBalance(txs)
+                AccountSource.MPESA -> WalletBalanceCalculator.computeMpesaBalance(txs)
                 AccountSource.CASH -> estimatedCash
                 else -> txs.firstOrNull { it.balance != null }?.balance
             }
@@ -229,50 +230,6 @@ class OverviewViewModel @Inject constructor(
                 dateTimestamp = dateTimestamp,
                 businessCode = businessCode
             )
-        }
-    }
-
-    /** Computes closed-loop estimated Cash on Hand from M-Pesa cash withdrawals + manual Cash entries. */
-    private fun computeEstimatedCashBalance(allTxs: List<TransactionEntity>): Double? {
-        val withdrawnCash = allTxs.filter {
-            it.type == TransactionType.WITHDRAW_CASH && it.natureEnum != TransactionNature.REVERSAL
-        }.sumOf { it.amount }
-        val cashTxs = allTxs.filter {
-            it.accountSource == AccountSource.CASH.name && it.natureEnum != TransactionNature.REVERSAL
-        }
-        if (withdrawnCash == 0.0 && cashTxs.isEmpty()) return null
-        val cashIn = cashTxs.filter {
-            it.natureEnum == TransactionNature.INCOME || it.natureEnum == TransactionNature.TRANSFER
-        }.sumOf { it.amount }
-        val cashOut = cashTxs.filter {
-            it.natureEnum == TransactionNature.EXPENSE
-        }.sumOf { it.amount + it.transactionCost }
-        return withdrawnCash + cashIn - cashOut
-    }
-
-    private fun computeMpesaBalance(mpesaTxs: List<TransactionEntity>): Double {
-        if (mpesaTxs.isEmpty()) return 0.0
-        val knownSimTxs = mpesaTxs.filter { it.simSubscriptionId != null }
-        return if (knownSimTxs.isNotEmpty()) {
-            knownSimTxs.groupBy { it.simSubscriptionId }.values.sumOf { singleSimBalance(it) }
-        } else {
-            singleSimBalance(mpesaTxs)
-        }
-    }
-
-    private fun singleSimBalance(txs: List<TransactionEntity>): Double {
-        val latest = txs.firstOrNull { it.balance != null } ?: return 0.0
-        return when {
-            latest.recipientName == "Fuliza M-PESA" && latest.balance != null -> -(latest.balance)
-            latest.balance == 0.0 -> {
-                val recentFuliza = txs.firstOrNull { it.recipientName == "Fuliza M-PESA" && it.balance != null }
-                when {
-                    recentFuliza?.balance != null && recentFuliza.balance > 0 -> -(recentFuliza.balance)
-                    latest.fulizaAmount != null -> -(latest.fulizaAmount)
-                    else -> 0.0
-                }
-            }
-            else -> latest.balance ?: 0.0
         }
     }
 }

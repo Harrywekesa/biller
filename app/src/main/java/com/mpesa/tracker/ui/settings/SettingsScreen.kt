@@ -26,7 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -619,7 +621,11 @@ fun SettingsScreen(
                 if (unparsedSms.isEmpty()) {
                     Text("All detected M-Pesa and bank SMS were recognized.", color = scheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 20.dp))
                 } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val clipboard = LocalClipboardManager.current
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 380.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         items(unparsedSms, key = { it.id }) { item ->
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
@@ -627,7 +633,22 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(item.sender, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = scheme.primary)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(item.sender, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = scheme.primary)
+                                        IconButton(
+                                            onClick = {
+                                                clipboard.setText(AnnotatedString("${item.sender}: ${item.body}"))
+                                                Toast.makeText(context, "Copied SMS", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(Icons.Filled.ContentCopy, "Copy SMS", modifier = Modifier.size(15.dp))
+                                        }
+                                    }
                                     Spacer(Modifier.height(4.dp))
                                     Text(item.body, fontSize = 12.sp)
                                 }

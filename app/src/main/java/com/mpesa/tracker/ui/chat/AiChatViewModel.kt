@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.ai.client.generativeai.Chat
 import com.mpesa.tracker.data.repository.TransactionRepository
 import com.mpesa.tracker.domain.intelligence.FinancialIntelligenceEngine
+import com.mpesa.tracker.domain.intelligence.WalletBalanceCalculator
 import com.mpesa.tracker.domain.models.ChatMessage
 import com.mpesa.tracker.domain.models.ChatRole
 import com.mpesa.tracker.domain.models.ReportPeriod
@@ -49,28 +50,33 @@ class AiChatViewModel @Inject constructor(
                     .firstOrNull() ?: 0.0
                 val income = repository.getTotalIncomeForPeriod(ReportPeriod.THIS_MONTH)
                     .firstOrNull() ?: 0.0
+                val fees = repository.getTotalFeesForPeriod(ReportPeriod.THIS_MONTH)
+                    .firstOrNull() ?: 0.0
                 val topCategories = repository.getExpensesByCategory(ReportPeriod.THIS_MONTH)
                     .firstOrNull() ?: emptyList()
 
-                // Compute live M-Pesa balance from DB when caller passes empty string
+                val allTxs = repository.getAllTransactions().firstOrNull() ?: emptyList()
+                val fmt = NumberFormat.getNumberInstance(Locale.US).apply {
+                    minimumFractionDigits = 2; maximumFractionDigits = 2
+                }
+
+                // Compute live M-Pesa balance via shared calculator when caller passes empty string
                 val resolvedBalance = if (currentBalance.isNotBlank()) {
                     currentBalance
                 } else {
-                    val txs = repository.getAllTransactions().firstOrNull() ?: emptyList()
-                    val mpesaLatest = txs.firstOrNull {
-                        it.accountSource == AccountSource.MPESA.name && it.balance != null && it.recipientName != "Fuliza M-PESA"
-                    }
-                    val fmt = NumberFormat.getNumberInstance(Locale.US).apply {
-                        minimumFractionDigits = 2; maximumFractionDigits = 2
-                    }
-                    if (mpesaLatest?.balance != null) "Ksh ${fmt.format(mpesaLatest.balance)}" else "Unknown"
+                    val mpesaTxs = allTxs.filter { it.accountSource == AccountSource.MPESA.name }
+                    val computed = WalletBalanceCalculator.computeMpesaBalance(mpesaTxs)
+                    if (mpesaTxs.any { it.balance != null }) "Ksh ${fmt.format(computed)}" else "Unknown"
                 }
+                val cashOnHand = WalletBalanceCalculator.computeEstimatedCashBalance(allTxs)
 
                 val systemPrompt = financialEngine.buildChatSystemPrompt(
                     totalSpentThisMonth = spent,
                     totalIncomeThisMonth = income,
                     topCategories = topCategories,
-                    currentBalance = resolvedBalance
+                    currentBalance = resolvedBalance,
+                    totalFeesThisMonth = fees,
+                    cashOnHand = cashOnHand
                 )
 
                 chatSession = financialEngine.startChatSession(systemPrompt)
